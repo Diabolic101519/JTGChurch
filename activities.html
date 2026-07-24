@@ -1,0 +1,292 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Jesus the Gospel Church</title>
+
+<style>
+html{
+    scroll-behavior:smooth;
+}
+
+*{
+    margin:0;
+    padding:0;
+    box-sizing:border-box;
+    font-family:Arial, Helvetica, sans-serif;
+}
+
+body{
+    background:#f5f5f5;
+    color:#333;
+    line-height:1.6;
+}
+
+header{
+    background:#1b4d6b;
+    color:#fff;
+    padding:15px 8%;
+    position:sticky;
+    top:0;
+    z-index:1000;
+}
+
+nav{
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    flex-wrap:wrap;
+}
+
+nav h2{
+    font-size:26px;
+}
+
+nav ul{
+    display:flex;
+    list-style:none;
+    flex-wrap:wrap;
+}
+
+nav ul li{
+    margin-left:15px;
+    margin-top:5px;
+}
+
+nav ul li a{
+    color:white;
+    text-decoration:none;
+    font-weight:bold;
+    padding:8px 15px;
+    border-radius:20px;
+    transition:.3s;
+}
+
+/* Hover */
+nav ul li a:hover{
+    background:#ffd166;
+    color:#1b4d6b;
+}
+
+/* Active */
+nav ul li a.active{
+    background:#ffd166;
+    color:#1b4d6b;
+}
+
+.hero{
+    background:linear-gradient(rgba(0,0,0,.5),rgba(0,0,0,.5)),
+    url("https://images.unsplash.com/photo-1504052434569-70ad5836ab65?auto=format&fit=crop&w=1400&q=80");
+    background-size:cover;
+    background-position:center;
+    height:80vh;
+    display:flex;
+    justify-content:center;
+    align-items:center;
+    text-align:center;
+    color:white;
+    padding:20px;
+}
+
+.hero h1{
+    font-size:50px;
+}
+
+.hero p{
+    font-size:20px;
+}
+
+section{
+    padding:70px 10%;
+}
+
+.card,
+.church-card{
+    background:white;
+    padding:25px;
+    border-radius:10px;
+    box-shadow:0 5px 15px rgba(0,0,0,.1);
+}
+
+.church-grid{
+    display:grid;
+    grid-template-columns:repeat(auto-fit,minmax(250px,1fr));
+    gap:20px;
+    margin-top:30px;
+}
+
+footer{
+    background:#1b4d6b;
+    color:white;
+    text-align:center;
+    padding:20px;
+}
+
+/* Mobile */
+/* Hamburger Menu */
+.menu-toggle{
+    display:none;
+    font-size:30px;
+    cursor:pointer;
+    color:white;
+    user-select:none;
+}
+
+@media (max-width:768px){
+
+header{
+    padding:15px;
+}
+
+nav{
+    justify-content:space-between;
+    align-items:center;
+}
+
+nav h2{
+    margin:0;
+}
+
+.menu-toggle{
+    display:block;
+}
+
+#nav-menu{
+    display:none;
+    width:100%;
+    flex-direction:column;
+    background:#1b4d6b;
+    margin-top:15px;
+}
+
+#nav-menu.show{
+    display:flex;
+}
+
+#nav-menu li{
+    margin:0;
+    text-align:center;
+}
+
+#nav-menu li a{
+    display:block;
+    padding:15px;
+    border-radius:0;
+}
+
+.hero{
+    height:60vh;
+}
+
+.hero h1{
+    font-size:32px;
+}
+
+.hero p{
+    font-size:17px;
+}
+
+section{
+    padding:50px 20px;
+}
+
+.church-grid{
+    grid-template-columns:1fr;
+}
+
+.card,
+.church-card{
+    padding:20px;
+}
+}
+</style>
+
+</head>
+<body>
+
+<header>
+<nav>
+<img src="images/logo.png" width="80" height="80" alt="Church Logo">
+    <h2>Jesus the Gospel</h2>
+
+    <div class="menu-toggle" id="menu-toggle">
+        &#9776;
+    </div>
+
+    <ul id="nav-menu">
+        <li><a href="index.html">Home</a></li>
+        <li><a href="activities.html">Activity</a></li>
+        <li><a href="aboutus.html">About Us</a></li>
+        <li><a href="church.html">Churches</a></li>
+        <li><a href="contact.html">Contact Us</a></li>
+    </ul>
+</nav>
+</header>
+
+<section id="activety">
+
+<h2>Mission & Vision</h2>
+
+<div class="card">
+<h3>Mission</h3>
+<p>
+To proclaim the Gospel of Jesus Christ, make faithful disciples,
+serve our community with love, and encourage spiritual growth through
+God's Word, prayer, and worship.
+</p>
+
+<br>
+
+<h3>Vision</h3>
+<p>
+To become a Christ-centered church that transforms lives,
+strengthens families, reaches communities, and glorifies God by
+sharing His love with the world.
+</p>
+
+</div>
+
+</section>
+
+<footer>
+<p>
+© 2026 Jesus the Gospel Church | "For God so loved the world..." – John 3:16
+</p>
+</footer>
+<script>
+const links = document.querySelectorAll("nav a");
+const menu = document.getElementById("nav-menu");
+const toggle = document.getElementById("menu-toggle");
+
+// Default active menu
+document.querySelector('nav a[href="activities.html"]').classList.add("active");
+
+// Open/Close hamburger
+toggle.addEventListener("click", () => {
+    menu.classList.toggle("show");
+
+    if(menu.classList.contains("show")){
+        toggle.innerHTML = "&times;";
+    }else{
+        toggle.innerHTML = "&#9776;";
+    }
+});
+
+// Highlight active menu and close on mobile
+links.forEach(link=>{
+    link.addEventListener("click",function(){
+
+        links.forEach(item=>item.classList.remove("active"));
+        this.classList.add("active");
+
+        if(window.innerWidth <= 768){
+            menu.classList.remove("show");
+            toggle.innerHTML = "&#9776;";
+        }
+    });
+});
+</script>
+
+</body>
+</html>
