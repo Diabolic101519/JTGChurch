@@ -95,8 +95,10 @@ async function hashPassword(password, salt) {
 }
 
 function setMessage(text, state) {
-    message.textContent = text;
-    message.dataset.state = state;
+    if (message) {
+        message.textContent = text;
+        message.dataset.state = state;
+    }
 }
 
 function normalizeEmail(email) {
@@ -116,17 +118,18 @@ function hexToBytes(hex) {
 
 function showPanel(panelName) {
     const isLogin = panelName === 'login';
-    loginPanel.hidden = !isLogin;
-    signupPanel.hidden = isLogin;
-    loginTab.setAttribute('aria-selected', String(isLogin));
-    signupTab.setAttribute('aria-selected', String(!isLogin));
+    if (loginPanel) loginPanel.hidden = !isLogin;
+    if (signupPanel) signupPanel.hidden = isLogin;
+    if (loginTab) loginTab.setAttribute('aria-selected', String(isLogin));
+    if (signupTab) signupTab.setAttribute('aria-selected', String(!isLogin));
     setMessage('', '');
 }
 
-loginTab.addEventListener('click', () => showPanel('login'));
-signupTab.addEventListener('click', () => showPanel('signup'));
+if (loginTab) loginTab.addEventListener('click', () => showPanel('login'));
+if (signupTab) signupTab.addEventListener('click', () => showPanel('signup'));
 
-document.getElementById('signup-form').addEventListener('submit', async event => {
+const signupForm = document.getElementById('signup-form');
+if (signupForm) signupForm.addEventListener('submit', async event => {
     event.preventDefault();
     const form = event.currentTarget;
     const formData = new FormData(form);
@@ -144,11 +147,13 @@ document.getElementById('signup-form').addEventListener('submit', async event =>
         };
         const saved = await saveAccount(account);
         if (!saved) {
+            window.alert('An account with this email already exists.');
             setMessage('An account with this email already exists.', 'error');
             return;
         }
         form.reset();
-        document.getElementById('login-email').value = email;
+        const loginEmail = document.getElementById('login-email');
+        if (loginEmail) loginEmail.value = email;
         showPanel('login');
         setMessage('Account created. You can now log in.', 'success');
     } catch (error) {
@@ -156,7 +161,8 @@ document.getElementById('signup-form').addEventListener('submit', async event =>
     }
 });
 
-document.getElementById('login-form').addEventListener('submit', async event => {
+const loginForm = document.getElementById('login-form');
+if (loginForm) loginForm.addEventListener('submit', async event => {
     event.preventDefault();
     const formData = new FormData(event.currentTarget);
     const email = normalizeEmail(formData.get('email'));
@@ -164,24 +170,27 @@ document.getElementById('login-form').addEventListener('submit', async event => 
     try {
         const account = await findAccount(email);
         if (!account) {
+            window.alert('Login unsuccessful. No account was found for that email.');
             setMessage('No account was found.', 'error');
             return;
         }
 
         const hash = await hashPassword(formData.get('password'), hexToBytes(account.salt));
         if (hash !== account.passwordHash) {
+            window.alert('Login unsuccessful. Check your email and password, then try again.');
             setMessage('The email or password is incorrect.', 'error');
             return;
         }
 
         sessionStorage.setItem('jtg-church-user', JSON.stringify({ email: account.email, name: account.name }));
-        window.location.href = 'activities.html';
+        window.location.href = 'index.html';
     } catch (error) {
         setMessage(error.message || 'Could not log in. Please try again.', 'error');
+        window.alert(error.message || 'Login unsuccessful. Please try again.');
     }
 });
 
 if (!window.indexedDB || !window.crypto || !window.crypto.subtle) {
     document.querySelectorAll('.auth-form button').forEach(button => { button.disabled = true; });
-    setMessage('Account storage requires, and a secure connection (HTTPS or localhost).', 'error');
+    setMessage('Account storage requires a modern browser and a secure connection (HTTPS or localhost).', 'error');
 }

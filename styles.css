@@ -25,6 +25,7 @@ header {
 }
 
 nav {
+    position: relative;
     display: flex;
     justify-content: space-between;
     align-items: center;
@@ -63,6 +64,57 @@ nav ul li a:hover {
 nav ul li a.active {
     background: #ffd166;
     color: #1b4d6b;
+}
+
+.account-menu {
+    position: relative;
+    margin-left: 15px;
+}
+
+.account-menu[hidden] {
+    display: none;
+}
+
+.account-name {
+    max-width: 180px;
+    overflow: hidden;
+    padding: 8px 15px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    border: 0;
+    border-radius: 20px;
+    background: #ffd166;
+    color: #1b4d6b;
+    cursor: pointer;
+    font-size: 16px;
+    font-weight: bold;
+}
+
+.account-dropdown {
+    display: none;
+    min-width: 150px;
+    position: absolute;
+    right: 0;
+    top: 100%;
+    padding-top: 8px;
+    z-index: 1100;
+}
+
+.account-menu:hover .account-dropdown,
+.account-menu:focus-within .account-dropdown {
+    display: block;
+}
+
+.account-dropdown .logout-button {
+    width: 100%;
+    margin: 0;
+    padding: 10px 14px;
+    border: 0;
+    border-radius: 6px;
+    box-shadow: 0 4px 12px rgba(0,0,0,.2);
+    cursor: pointer;
+    font-size: 15px;
+    font-weight: bold;
 }
 
 .hero {
@@ -162,7 +214,8 @@ section {
 }
 
 .auth-tabs button[aria-selected="true"],
-.auth-form button {
+.auth-form button,
+.logout-button {
     background: #1b4d6b;
     color: white;
 }
@@ -181,7 +234,8 @@ section {
     width: 100%;
 }
 
-.auth-form button {
+.auth-form button,
+.logout-button {
     margin-top: 20px;
     width: 100%;
 }
@@ -197,12 +251,6 @@ section {
 
 .auth-message[data-state="success"] {
     color: #236b35;
-}
-
-.auth-disclaimer {
-    color: #555;
-    font-size: 14px;
-    margin-top: 20px;
 }
 
 .church-grid {
@@ -235,6 +283,7 @@ footer {
     nav {
         justify-content: space-between;
         align-items: center;
+        padding-right: 52px;
     }
 
     nav h2 {
@@ -243,6 +292,23 @@ footer {
 
     .menu-toggle {
         display: block;
+    }
+
+    .account-menu {
+        position: absolute;
+        top: 2px;
+        right: 52px;
+        margin: 0;
+        max-width: calc(100% - 180px);
+    }
+
+    .account-name {
+        max-width: 100%;
+        font-size: 14px;
+    }
+
+    .account-dropdown {
+        min-width: 130px;
     }
 
     #nav-menu {
