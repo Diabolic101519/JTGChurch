@@ -9,8 +9,9 @@ Website for Jesus True Gospel Church.
 - A standalone login and sign-up page at [`auth.html`](./auth.html).
 - Local account storage using the browser's built-in IndexedDB, shared by both login interfaces.
 - Passwords stored as salted PBKDF2 hashes.
-- Successful login redirects to the home page. The signed-in user's name appears in the upper-right navigation on every page.
+- Successful login redirects to the home page, where the signed-in user's name appears in the upper-right navigation on every page and the account dropdown replaces the login form.
 - Hover over or keyboard-focus the account name to reveal the Log Out control. Logging out clears the current browser session; the account dropdown works independently of the page navigation menu.
+- The navigation provides access to Activities, About Us, Church's, and Contact Us.
 - Unsuccessful login and attempts to sign up with an existing email show popup messages.
 
 ## Run locally
