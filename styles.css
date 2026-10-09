@@ -70,13 +70,30 @@ nav ul li a.active {
     url("https://images.unsplash.com/photo-1504052434569-70ad5836ab65?auto=format&fit=crop&w=1400&q=80");
     background-size: cover;
     background-position: center;
-    height: 80vh;
+    min-height: 80vh;
     display: flex;
     justify-content: center;
     align-items: center;
-    text-align: center;
     color: white;
-    padding: 20px;
+    padding: 40px 8%;
+}
+
+.hero-layout {
+    width: min(100%, 1200px);
+    display: grid;
+    grid-template-columns: minmax(300px, 380px) minmax(0, 1fr);
+    align-items: center;
+    gap: clamp(32px, 7vw, 90px);
+}
+
+.home-auth-card {
+    width: 100%;
+    color: #333;
+    text-align: left;
+}
+
+.hero-copy {
+    text-align: left;
 }
 
 .hero h1 {
@@ -109,6 +126,7 @@ section {
     padding: 30px;
     border-radius: 10px;
     box-shadow: 0 5px 15px rgba(0,0,0,.1);
+    color: #333;
 }
 
 .auth-card h1,
@@ -254,7 +272,18 @@ footer {
     }
 
     .hero {
-        height: 60vh;
+        min-height: 60vh;
+        padding: 40px 20px;
+    }
+
+    .hero-layout {
+        max-width: 460px;
+        grid-template-columns: 1fr;
+        gap: 30px;
+    }
+
+    .hero-copy {
+        text-align: center;
     }
 
     .hero h1 {
