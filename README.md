@@ -9,7 +9,7 @@ Website for Jesus True Gospel Church.
 - A standalone login and sign-up page at [`auth.html`](./auth.html).
 - Local account storage using the browser's built-in IndexedDB, shared by both login interfaces.
 - Passwords stored as salted PBKDF2 hashes.
-- Successful login redirects to the Activities page, where navigation links provide access to About Us, Church's, and Contact Us.
+- Successful login returns to the home page, where the signed-in user's name and a Log Out button replace the login form. The navigation provides access to Activities, About Us, Church's, and Contact Us.
 
 ## Run locally
 

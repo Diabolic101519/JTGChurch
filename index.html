@@ -31,36 +31,43 @@
 <section class="hero" id="index">
 <div class="hero-layout">
     <div class="auth-card home-auth-card">
-        <h1>Welcome</h1>
-        <p>Sign in or create an account.</p>
+        <div id="auth-content">
+            <h1>Welcome</h1>
+            <p>Sign in or create an account.</p>
 
-        <div class="auth-tabs" role="tablist" aria-label="Account access">
-            <button id="login-tab" type="button" role="tab" aria-selected="true" aria-controls="login-panel">Login</button>
-            <button id="signup-tab" type="button" role="tab" aria-selected="false" aria-controls="signup-panel">Sign Up</button>
+            <div class="auth-tabs" role="tablist" aria-label="Account access">
+                <button id="login-tab" type="button" role="tab" aria-selected="true" aria-controls="login-panel">Login</button>
+                <button id="signup-tab" type="button" role="tab" aria-selected="false" aria-controls="signup-panel">Sign Up</button>
+            </div>
+
+            <div id="login-panel" role="tabpanel" aria-labelledby="login-tab">
+                <form id="login-form" class="auth-form">
+                    <label for="login-email">Email</label>
+                    <input id="login-email" name="email" type="email" autocomplete="email" required>
+                    <label for="login-password">Password</label>
+                    <input id="login-password" name="password" type="password" autocomplete="current-password" required>
+                    <button type="submit">Login</button>
+                </form>
+            </div>
+
+            <div id="signup-panel" role="tabpanel" aria-labelledby="signup-tab" hidden>
+                <form id="signup-form" class="auth-form">
+                    <label for="signup-name">Name</label>
+                    <input id="signup-name" name="name" type="text" autocomplete="name" maxlength="100" required>
+                    <label for="signup-email">Email</label>
+                    <input id="signup-email" name="email" type="email" autocomplete="email" required>
+                    <label for="signup-password">Password (at least 8 characters)</label>
+                    <input id="signup-password" name="password" type="password" autocomplete="new-password" minlength="8" required>
+                    <button type="submit">Create Account</button>
+                </form>
+            </div>
+            <p id="auth-message" class="auth-message" role="status" aria-live="polite"></p>
         </div>
 
-        <div id="login-panel" role="tabpanel" aria-labelledby="login-tab">
-            <form id="login-form" class="auth-form">
-                <label for="login-email">Email</label>
-                <input id="login-email" name="email" type="email" autocomplete="email" required>
-                <label for="login-password">Password</label>
-                <input id="login-password" name="password" type="password" autocomplete="current-password" required>
-                <button type="submit">Login</button>
-            </form>
+        <div id="signed-in-panel" class="signed-in-panel" hidden>
+            <h1>Welcome, <span id="signed-in-name"></span></h1>
+            <button id="logout-button" class="logout-button" type="button">Log Out</button>
         </div>
-
-        <div id="signup-panel" role="tabpanel" aria-labelledby="signup-tab" hidden>
-            <form id="signup-form" class="auth-form">
-                <label for="signup-name">Name</label>
-                <input id="signup-name" name="name" type="text" autocomplete="name" maxlength="100" required>
-                <label for="signup-email">Email</label>
-                <input id="signup-email" name="email" type="email" autocomplete="email" required>
-                <label for="signup-password">Password (at least 8 characters)</label>
-                <input id="signup-password" name="password" type="password" autocomplete="new-password" minlength="8" required>
-                <button type="submit">Create Account</button>
-            </form>
-        </div>
-        <p id="auth-message" class="auth-message" role="status" aria-live="polite"></p>
     </div>
 
     <div class="hero-copy">
