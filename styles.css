@@ -56,7 +56,7 @@ nav ul li a {
     transition: .3s;
 }
 
-nav ul li a:hover {
+nav ul li a:not([aria-disabled="true"]):hover {
     background: #bfe9ef;
     color: #123e55;
 }
@@ -155,22 +155,22 @@ nav ul li a[aria-disabled="true"] {
     gap: clamp(32px, 7vw, 90px);
 }
 
+.hero-layout.is-signed-in {
+    grid-template-columns: 1fr;
+}
+
 .home-auth-card {
     width: 100%;
     color: #333;
     text-align: left;
 }
 
-.hero-copy {
-    text-align: left;
+.hero-layout.is-signed-in .hero-copy {
+    text-align: center;
 }
 
-.home-signed-in p {
-    color: #1b4d6b;
-    font-size: 30px;
-    font-weight: bold;
-    overflow-wrap: anywhere;
-    text-align: center;
+.hero-copy {
+    text-align: left;
 }
 
 .hero h1 {

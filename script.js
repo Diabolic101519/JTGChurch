@@ -6,8 +6,8 @@ const accountMenu = document.getElementById('account-menu');
 const accountName = document.getElementById('account-name');
 const logoutButton = document.getElementById('logout-button');
 const authContent = document.getElementById('auth-content');
-const homeSignedIn = document.getElementById('home-signed-in');
-const homeSignedInName = document.getElementById('home-signed-in-name');
+const homeAuthCard = document.querySelector('.home-auth-card');
+const heroLayout = document.getElementById('hero-layout');
 const activityLinks = document.querySelectorAll('nav a[href="activities.html"]');
 let isSignedIn = false;
 
@@ -35,6 +35,8 @@ if (toggle && menu) {
 
 links.forEach(link => {
     link.addEventListener('click', function () {
+        if (this.getAttribute('aria-disabled') === 'true') return;
+
         links.forEach(item => item.classList.remove('active'));
         this.classList.add('active');
 
@@ -57,10 +59,10 @@ if (storedUser && accountMenu && accountName) {
             });
             accountName.textContent = user.name;
             accountMenu.hidden = false;
-            if (authContent && homeSignedIn && homeSignedInName) {
+            if (authContent && homeAuthCard && heroLayout) {
                 authContent.hidden = true;
-                homeSignedInName.textContent = user.name;
-                homeSignedIn.hidden = false;
+                homeAuthCard.hidden = true;
+                heroLayout.classList.add('is-signed-in');
             }
         } else {
             sessionStorage.removeItem('jtg-church-user');
