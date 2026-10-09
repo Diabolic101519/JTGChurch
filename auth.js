@@ -7,7 +7,6 @@ const loginTab = document.getElementById('login-tab');
 const signupTab = document.getElementById('signup-tab');
 const loginPanel = document.getElementById('login-panel');
 const signupPanel = document.getElementById('signup-panel');
-const logoutButton = document.getElementById('logout-button');
 
 function openDatabase() {
     return new Promise((resolve, reject) => {
@@ -126,11 +125,6 @@ function showPanel(panelName) {
 
 loginTab.addEventListener('click', () => showPanel('login'));
 signupTab.addEventListener('click', () => showPanel('signup'));
-logoutButton.addEventListener('click', () => {
-    sessionStorage.removeItem('jtg-church-user');
-    logoutButton.hidden = true;
-    setMessage('You are logged out.', 'success');
-});
 
 document.getElementById('signup-form').addEventListener('submit', async event => {
     event.preventDefault();
@@ -181,27 +175,11 @@ document.getElementById('login-form').addEventListener('submit', async event => 
         }
 
         sessionStorage.setItem('jtg-church-user', JSON.stringify({ email: account.email, name: account.name }));
-        logoutButton.hidden = false;
-        setMessage(`Welcome, ${account.name}. You are logged in for this browser session.`, 'success');
+        window.location.href = 'activities.html';
     } catch (error) {
         setMessage(error.message || 'Could not log in. Please try again.', 'error');
     }
 });
-
-const currentUser = sessionStorage.getItem('jtg-church-user');
-if (currentUser) {
-    try {
-        const user = JSON.parse(currentUser);
-        if (typeof user.name === 'string' && typeof user.email === 'string') {
-            logoutButton.hidden = false;
-            setMessage(`Welcome back, ${user.name}. You are logged in for this browser session.`, 'success');
-        } else {
-            sessionStorage.removeItem('jtg-church-user');
-        }
-    } catch {
-        sessionStorage.removeItem('jtg-church-user');
-    }
-}
 
 if (!window.indexedDB || !window.crypto || !window.crypto.subtle) {
     document.querySelectorAll('.auth-form button').forEach(button => { button.disabled = true; });

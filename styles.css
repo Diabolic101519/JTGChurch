@@ -146,8 +146,7 @@ section {
 }
 
 .auth-tabs button,
-.auth-form button,
-.logout-button {
+.auth-form button {
     border: 0;
     border-radius: 6px;
     cursor: pointer;
@@ -163,8 +162,7 @@ section {
 }
 
 .auth-tabs button[aria-selected="true"],
-.auth-form button,
-.logout-button {
+.auth-form button {
     background: #1b4d6b;
     color: white;
 }
@@ -183,8 +181,7 @@ section {
     width: 100%;
 }
 
-.auth-form button,
-.logout-button {
+.auth-form button {
     margin-top: 20px;
     width: 100%;
 }
