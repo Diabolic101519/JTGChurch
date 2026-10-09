@@ -9,12 +9,13 @@ Website for Jesus True Gospel Church.
 - A standalone login and sign-up page at [`auth.html`](./auth.html).
 - Local account storage using the browser's built-in IndexedDB, shared by both login interfaces.
 - Passwords stored as salted PBKDF2 hashes.
-- Sign Up creates an account with a name, email, and password. Email addresses are normalized to lowercase; passwords must be at least eight characters. Invalid form entries, storage errors, and duplicate email attempts are reported only in a centered, accessible dialog.
-- A successful sign-up shows a confirmation dialog and switches to Login. Login errors, including missing accounts and incorrect passwords, are reported only in the centered dialog as "Invalid Email/ Password"; custom validation prevents browser-native validation popups.
-- Successful login redirects to the home page. The login and sign-up forms are hidden and replaced by the signed-in user's name.
-- The signed-in name also appears in a highlighted control in the upper-right navigation on every page. Hover over or keyboard-focus the name to reveal Log Out; the account control works independently of the page navigation menu.
-- Logging out clears the current browser session and restores the login and sign-up forms on the home page.
-- The navigation provides access to Activities, About Us, Church's, and Contact Us.
+- Sign Up creates an account with a name, email, and password. Email addresses are normalized to lowercase; passwords must be at least eight characters. Invalid form entries, storage errors, and duplicate email attempts are reported in a centered, accessible dialog.
+- A successful sign-up displays a confirmation dialog with a checkmark and switches to Login. Login errors, including missing accounts and incorrect passwords, are reported in the dialog as "Invalid Email/ Password"; custom validation prevents browser-native validation popups.
+- Successful login saves the signed-in user's name and email in the current browser session, then redirects to the home page. The home-page login and sign-up card is hidden while signed in, and the user's name appears in the upper-right navigation.
+- The Activity navigation link is disabled while signed out and enabled for a valid signed-in session. Opening `activities.html` directly while signed out redirects to `auth.html`.
+- Hover over or keyboard-focus the signed-in name to reveal Log Out; the account control works independently of the page navigation menu.
+- Logging out clears the current browser session and returns to the home page, where login and sign-up are available and Activity is disabled again.
+- The navigation also provides access to About Us, Church's, and Contact Us.
 - Pages apply a restrictive Content Security Policy and a strict cross-origin referrer policy.
 
 ## Run locally
