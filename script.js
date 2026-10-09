@@ -6,6 +6,8 @@ const accountMenu = document.getElementById('account-menu');
 const accountName = document.getElementById('account-name');
 const logoutButton = document.getElementById('logout-button');
 const authContent = document.getElementById('auth-content');
+const homeSignedIn = document.getElementById('home-signed-in');
+const homeSignedInName = document.getElementById('home-signed-in-name');
 
 const activeLink = document.querySelector(`nav a[href="${currentPage}"]`);
 if (activeLink) {
@@ -39,6 +41,10 @@ if (storedUser && accountMenu && accountName) {
             accountName.textContent = user.name;
             accountMenu.hidden = false;
             if (authContent) authContent.hidden = true;
+            if (homeSignedIn && homeSignedInName) {
+                homeSignedInName.textContent = user.name;
+                homeSignedIn.hidden = false;
+            }
         } else {
             sessionStorage.removeItem('jtg-church-user');
         }
