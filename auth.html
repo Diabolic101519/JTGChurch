@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Login / Sign Up | Jesus True Gospel Church</title>
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<header>
+<nav>
+    <h2>Jesus True Gospel</h2>
+    <div class="menu-toggle" id="menu-toggle">&#9776;</div>
+    <ul id="nav-menu">
+        <li><a href="index.html">Home</a></li>
+        <li><a href="activities.html">Activity</a></li>
+        <li><a href="aboutus.html">About Us</a></li>
+        <li><a href="church.html">Church's</a></li>
+        <li><a href="contact.html">Contact Us</a></li>
+        <li><a href="auth.html">Login / Sign Up</a></li>
+    </ul>
+</nav>
+</header>
+
+<main>
+<section class="auth-section">
+    <div class="auth-card">
+        <h1>Welcome</h1>
+        <p>Sign in or create an account.</p>
+
+        <div class="auth-tabs" role="tablist" aria-label="Account access">
+            <button id="login-tab" type="button" role="tab" aria-selected="true" aria-controls="login-panel">Login</button>
+            <button id="signup-tab" type="button" role="tab" aria-selected="false" aria-controls="signup-panel">Sign Up</button>
+        </div>
+
+        <div id="login-panel" role="tabpanel" aria-labelledby="login-tab">
+            <form id="login-form" class="auth-form">
+                <label for="login-email">Email</label>
+                <input id="login-email" name="email" type="email" autocomplete="email" required>
+                <label for="login-password">Password</label>
+                <input id="login-password" name="password" type="password" autocomplete="current-password" required>
+                <button type="submit">Login</button>
+            </form>
+        </div>
+
+        <div id="signup-panel" role="tabpanel" aria-labelledby="signup-tab" hidden>
+            <form id="signup-form" class="auth-form">
+                <label for="signup-name">Name</label>
+                <input id="signup-name" name="name" type="text" autocomplete="name" maxlength="100" required>
+                <label for="signup-email">Email</label>
+                <input id="signup-email" name="email" type="email" autocomplete="email" required>
+                <label for="signup-password">Password (at least 8 characters)</label>
+                <input id="signup-password" name="password" type="password" autocomplete="new-password" minlength="8" required>
+                <button type="submit">Create Account</button>
+            </form>
+        </div>
+
+        <p id="auth-message" class="auth-message" role="status" aria-live="polite"></p>
+        <button id="logout-button" class="logout-button" type="button" hidden>Log Out</button>
+        <p class="auth-disclaimer">Accounts are stored only in this browser on this device. This static website does not provide server-side authentication.</p>
+    </div>
+</section>
+</main>
+
+<footer>
+<p>© 2026 Jesus True Gospel Church | "For God so loved the world..." – John 3:16</p>
+</footer>
+<script src="script.js"></script>
+<script src="auth.js"></script>
+</body>
+</html>
