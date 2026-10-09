@@ -160,17 +160,12 @@ nav ul li a.active {
     text-align: left;
 }
 
-.home-signed-in h1 {
-    color: #1b4d6b;
-    font-size: 34px;
-    margin-bottom: 8px;
-}
-
 .home-signed-in p {
     color: #1b4d6b;
-    font-size: 25px;
+    font-size: 30px;
     font-weight: bold;
     overflow-wrap: anywhere;
+    text-align: center;
 }
 
 .hero h1 {
@@ -276,6 +271,82 @@ section {
 
 .auth-message[data-state="success"] {
     color: #236b35;
+}
+
+.auth-dialog {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    width: min(92vw, 410px);
+    margin: 0;
+    padding: 0;
+    border: 0;
+    border-radius: 18px;
+    color: #263746;
+    box-shadow: 0 24px 70px rgba(12, 35, 51, .35);
+    transform: translate(-50%, -50%);
+}
+
+.auth-dialog::backdrop {
+    background: rgba(10, 25, 38, .62);
+    backdrop-filter: blur(4px);
+}
+
+.auth-dialog-content {
+    padding: 32px;
+    text-align: center;
+}
+
+.auth-dialog-icon {
+    display: grid;
+    width: 52px;
+    height: 52px;
+    margin: 0 auto 16px;
+    place-items: center;
+    border: 2px solid #e2a841;
+    border-radius: 50%;
+    color: #9a6413;
+    font-size: 28px;
+    font-weight: bold;
+}
+
+.auth-dialog h2 {
+    color: #1b4d6b;
+    font-size: 23px;
+    margin-bottom: 8px;
+}
+
+.auth-dialog p {
+    color: #4f5d67;
+    overflow-wrap: anywhere;
+}
+
+.auth-dialog form {
+    margin-top: 24px;
+}
+
+.auth-dialog-close {
+    min-width: 120px;
+    padding: 11px 22px;
+    border: 0;
+    border-radius: 8px;
+    background: #1b4d6b;
+    color: #fff;
+    cursor: pointer;
+    font-size: 16px;
+    font-weight: bold;
+    transition: background .2s ease, transform .2s ease;
+}
+
+.auth-dialog-close:hover,
+.auth-dialog-close:focus-visible {
+    background: #28789a;
+    outline: 3px solid #c5e7ef;
+    outline-offset: 2px;
+}
+
+.auth-dialog-close:active {
+    transform: translateY(1px);
 }
 
 .church-grid {

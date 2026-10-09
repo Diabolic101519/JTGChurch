@@ -3,6 +3,8 @@ const databaseVersion = 1;
 const passwordIterations = 310000;
 const encoder = new TextEncoder();
 const message = document.getElementById('auth-message');
+const authDialog = document.getElementById('auth-dialog');
+const authDialogMessage = document.getElementById('auth-dialog-message');
 const loginTab = document.getElementById('login-tab');
 const signupTab = document.getElementById('signup-tab');
 const loginPanel = document.getElementById('login-panel');
@@ -101,6 +103,15 @@ function setMessage(text, state) {
     }
 }
 
+function showPopup(text) {
+    if (authDialog && authDialogMessage && typeof authDialog.showModal === 'function') {
+        authDialogMessage.textContent = text;
+        authDialog.showModal();
+        return;
+    }
+    setMessage(text, 'error');
+}
+
 function normalizeEmail(email) {
     return email.trim().toLowerCase();
 }
@@ -147,7 +158,7 @@ if (signupForm) signupForm.addEventListener('submit', async event => {
         };
         const saved = await saveAccount(account);
         if (!saved) {
-            window.alert('An account with this email already exists.');
+            showPopup('An account with this email already exists. Try logging in instead.');
             setMessage('An account with this email already exists.', 'error');
             return;
         }
@@ -158,6 +169,7 @@ if (signupForm) signupForm.addEventListener('submit', async event => {
         setMessage('Account created. You can now log in.', 'success');
     } catch (error) {
         setMessage(error.message || 'Could not create the account. Please try again.', 'error');
+        showPopup(error.message || 'Could not create the account. Please try again.');
     }
 });
 
@@ -170,14 +182,14 @@ if (loginForm) loginForm.addEventListener('submit', async event => {
     try {
         const account = await findAccount(email);
         if (!account) {
-            window.alert('Invalid Email/ Password');
+            showPopup('Invalid Email/ Password');
             setMessage('Invalid Email/ Password', 'error');
             return;
         }
 
         const hash = await hashPassword(formData.get('password'), hexToBytes(account.salt));
         if (hash !== account.passwordHash) {
-            window.alert('Invalid Email/ Password');
+            showPopup('Invalid Email/ Password');
             setMessage('Invalid Email/ Password', 'error');
             return;
         }
@@ -186,7 +198,7 @@ if (loginForm) loginForm.addEventListener('submit', async event => {
         window.location.href = 'index.html';
     } catch (error) {
         setMessage(error.message || 'Could not log in. Please try again.', 'error');
-        window.alert(error.message || 'Invalid Email/ Password');
+        showPopup(error.message || 'Invalid Email/ Password');
     }
 });
 
