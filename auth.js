@@ -7,10 +7,6 @@ const loginTab = document.getElementById('login-tab');
 const signupTab = document.getElementById('signup-tab');
 const loginPanel = document.getElementById('login-panel');
 const signupPanel = document.getElementById('signup-panel');
-const authContent = document.getElementById('auth-content');
-const signedInPanel = document.getElementById('signed-in-panel');
-const signedInName = document.getElementById('signed-in-name');
-const logoutButton = document.getElementById('logout-button');
 
 function openDatabase() {
     return new Promise((resolve, reject) => {
@@ -129,15 +125,6 @@ function showPanel(panelName) {
     setMessage('', '');
 }
 
-loginTab.addEventListener('click', () => showPanel('login'));
-signupTab.addEventListener('click', () => showPanel('signup'));
-
-if (logoutButton) {
-    logoutButton.addEventListener('click', () => {
-        sessionStorage.removeItem('jtg-church-user');
-        window.location.reload();
-    });
-}
 if (loginTab) loginTab.addEventListener('click', () => showPanel('login'));
 if (signupTab) signupTab.addEventListener('click', () => showPanel('signup'));
 
@@ -183,15 +170,15 @@ if (loginForm) loginForm.addEventListener('submit', async event => {
     try {
         const account = await findAccount(email);
         if (!account) {
-            window.alert('Login unsuccessful. No account was found for that email.');
-            setMessage('No account was found.', 'error');
+            window.alert('Invalid Email/ Password');
+            setMessage('Invalid Email/ Password', 'error');
             return;
         }
 
         const hash = await hashPassword(formData.get('password'), hexToBytes(account.salt));
         if (hash !== account.passwordHash) {
-            window.alert('Login unsuccessful. Check your email and password, then try again.');
-            setMessage('The email or password is incorrect.', 'error');
+            window.alert('Invalid Email/ Password');
+            setMessage('Invalid Email/ Password', 'error');
             return;
         }
 
@@ -199,25 +186,9 @@ if (loginForm) loginForm.addEventListener('submit', async event => {
         window.location.href = 'index.html';
     } catch (error) {
         setMessage(error.message || 'Could not log in. Please try again.', 'error');
-        window.alert(error.message || 'Login unsuccessful. Please try again.');
+        window.alert(error.message || 'Invalid Email/ Password');
     }
 });
-
-const currentUser = sessionStorage.getItem('jtg-church-user');
-if (currentUser && authContent && signedInPanel && signedInName) {
-    try {
-        const user = JSON.parse(currentUser);
-        if (typeof user.name === 'string' && typeof user.email === 'string') {
-            signedInName.textContent = user.name;
-            authContent.hidden = true;
-            signedInPanel.hidden = false;
-        } else {
-            sessionStorage.removeItem('jtg-church-user');
-        }
-    } catch {
-        sessionStorage.removeItem('jtg-church-user');
-    }
-}
 
 if (!window.indexedDB || !window.crypto || !window.crypto.subtle) {
     document.querySelectorAll('.auth-form button').forEach(button => { button.disabled = true; });

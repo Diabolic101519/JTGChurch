@@ -40,8 +40,8 @@ if (storedUser && accountMenu && accountName) {
         if (typeof user.name === 'string' && user.name.trim() && typeof user.email === 'string') {
             accountName.textContent = user.name;
             accountMenu.hidden = false;
-            if (authContent) authContent.hidden = true;
-            if (homeSignedIn && homeSignedInName) {
+            if (authContent && homeSignedIn && homeSignedInName) {
+                authContent.hidden = true;
                 homeSignedInName.textContent = user.name;
                 homeSignedIn.hidden = false;
             }
