@@ -260,23 +260,11 @@ section {
     width: 100%;
 }
 
-.auth-message {
-    margin-top: 16px;
-    min-height: 1.6em;
-}
-
-.auth-message[data-state="error"] {
-    color: #a12622;
-}
-
-.auth-message[data-state="success"] {
-    color: #236b35;
-}
-
 .auth-dialog {
     position: fixed;
     top: 50%;
     left: 50%;
+    z-index: 1200;
     width: min(92vw, 410px);
     margin: 0;
     padding: 0;
@@ -308,6 +296,11 @@ section {
     color: #9a6413;
     font-size: 28px;
     font-weight: bold;
+}
+
+.auth-dialog[data-state="success"] .auth-dialog-icon {
+    border-color: #57a773;
+    color: #236b35;
 }
 
 .auth-dialog h2 {

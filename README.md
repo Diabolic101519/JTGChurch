@@ -9,8 +9,8 @@ Website for Jesus True Gospel Church.
 - A standalone login and sign-up page at [`auth.html`](./auth.html).
 - Local account storage using the browser's built-in IndexedDB, shared by both login interfaces.
 - Passwords stored as salted PBKDF2 hashes.
-- Sign Up creates an account with a name, email, and password. Email addresses are normalized to lowercase; passwords must be at least eight characters, and duplicate emails are rejected with a centered dialog.
-- Login compares the entered email and password with the saved account. If the account is missing or either credential does not match, a centered dialog says "Invalid Email/ Password".
+- Sign Up creates an account with a name, email, and password. Email addresses are normalized to lowercase; passwords must be at least eight characters. Invalid form entries, storage errors, and duplicate email attempts are reported only in a centered, accessible dialog.
+- A successful sign-up shows a confirmation dialog and switches to Login. Login errors, including missing accounts and incorrect passwords, are reported only in the centered dialog as "Invalid Email/ Password"; custom validation prevents browser-native validation popups.
 - Successful login redirects to the home page. The login and sign-up forms are hidden and replaced by the signed-in user's name.
 - The signed-in name also appears in a highlighted control in the upper-right navigation on every page. Hover over or keyboard-focus the name to reveal Log Out; the account control works independently of the page navigation menu.
 - Logging out clears the current browser session and restores the login and sign-up forms on the home page.
