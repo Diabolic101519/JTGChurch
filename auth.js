@@ -188,7 +188,7 @@ if (signupForm) signupForm.addEventListener('submit', async event => {
         const loginEmail = document.getElementById('login-email');
         if (loginEmail) loginEmail.value = email;
         showPanel('login');
-        showPopup('Your account is ready. You can now log in.');
+        showPopup('Your account is ready. You can now log in.', 'success');
     } catch (error) {
         showPopup(error.message || 'Could not create the account. Please try again.');
     }

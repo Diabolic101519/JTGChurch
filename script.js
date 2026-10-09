@@ -8,11 +8,23 @@ const logoutButton = document.getElementById('logout-button');
 const authContent = document.getElementById('auth-content');
 const homeSignedIn = document.getElementById('home-signed-in');
 const homeSignedInName = document.getElementById('home-signed-in-name');
+const activityLinks = document.querySelectorAll('nav a[href="activities.html"]');
+let isSignedIn = false;
 
 const activeLink = document.querySelector(`nav a[href="${currentPage}"]`);
 if (activeLink) {
     activeLink.classList.add('active');
 }
+
+activityLinks.forEach(link => {
+    link.setAttribute('aria-disabled', 'true');
+    link.tabIndex = -1;
+    link.addEventListener('click', event => {
+        if (link.getAttribute('aria-disabled') === 'true') {
+            event.preventDefault();
+        }
+    });
+});
 
 if (toggle && menu) {
     toggle.addEventListener('click', () => {
@@ -38,6 +50,11 @@ if (storedUser && accountMenu && accountName) {
     try {
         const user = JSON.parse(storedUser);
         if (typeof user.name === 'string' && user.name.trim() && typeof user.email === 'string') {
+            isSignedIn = true;
+            activityLinks.forEach(link => {
+                link.setAttribute('aria-disabled', 'false');
+                link.removeAttribute('tabindex');
+            });
             accountName.textContent = user.name;
             accountMenu.hidden = false;
             if (authContent && homeSignedIn && homeSignedInName) {
@@ -51,6 +68,10 @@ if (storedUser && accountMenu && accountName) {
     } catch {
         sessionStorage.removeItem('jtg-church-user');
     }
+}
+
+if (currentPage === 'activities.html' && !isSignedIn) {
+    window.location.replace('auth.html');
 }
 
 if (accountMenu && accountName) {
