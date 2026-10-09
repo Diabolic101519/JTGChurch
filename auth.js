@@ -144,7 +144,7 @@ document.getElementById('signup-form').addEventListener('submit', async event =>
         };
         const saved = await saveAccount(account);
         if (!saved) {
-            setMessage('An account with this email already exists in this browser.', 'error');
+            setMessage('An account with this email already exists.', 'error');
             return;
         }
         form.reset();
@@ -164,7 +164,7 @@ document.getElementById('login-form').addEventListener('submit', async event => 
     try {
         const account = await findAccount(email);
         if (!account) {
-            setMessage('No account was found for that email in this browser.', 'error');
+            setMessage('No account was found.', 'error');
             return;
         }
 
@@ -183,5 +183,5 @@ document.getElementById('login-form').addEventListener('submit', async event => 
 
 if (!window.indexedDB || !window.crypto || !window.crypto.subtle) {
     document.querySelectorAll('.auth-form button').forEach(button => { button.disabled = true; });
-    setMessage('Account storage requires a modern browser and a secure connection (HTTPS or localhost).', 'error');
+    setMessage('Account storage requires, and a secure connection (HTTPS or localhost).', 'error');
 }
