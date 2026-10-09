@@ -7,6 +7,10 @@ const loginTab = document.getElementById('login-tab');
 const signupTab = document.getElementById('signup-tab');
 const loginPanel = document.getElementById('login-panel');
 const signupPanel = document.getElementById('signup-panel');
+const authContent = document.getElementById('auth-content');
+const signedInPanel = document.getElementById('signed-in-panel');
+const signedInName = document.getElementById('signed-in-name');
+const logoutButton = document.getElementById('logout-button');
 
 function openDatabase() {
     return new Promise((resolve, reject) => {
@@ -125,6 +129,15 @@ function showPanel(panelName) {
     setMessage('', '');
 }
 
+loginTab.addEventListener('click', () => showPanel('login'));
+signupTab.addEventListener('click', () => showPanel('signup'));
+
+if (logoutButton) {
+    logoutButton.addEventListener('click', () => {
+        sessionStorage.removeItem('jtg-church-user');
+        window.location.reload();
+    });
+}
 if (loginTab) loginTab.addEventListener('click', () => showPanel('login'));
 if (signupTab) signupTab.addEventListener('click', () => showPanel('signup'));
 
@@ -189,6 +202,22 @@ if (loginForm) loginForm.addEventListener('submit', async event => {
         window.alert(error.message || 'Login unsuccessful. Please try again.');
     }
 });
+
+const currentUser = sessionStorage.getItem('jtg-church-user');
+if (currentUser && authContent && signedInPanel && signedInName) {
+    try {
+        const user = JSON.parse(currentUser);
+        if (typeof user.name === 'string' && typeof user.email === 'string') {
+            signedInName.textContent = user.name;
+            authContent.hidden = true;
+            signedInPanel.hidden = false;
+        } else {
+            sessionStorage.removeItem('jtg-church-user');
+        }
+    } catch {
+        sessionStorage.removeItem('jtg-church-user');
+    }
+}
 
 if (!window.indexedDB || !window.crypto || !window.crypto.subtle) {
     document.querySelectorAll('.auth-form button').forEach(button => { button.disabled = true; });

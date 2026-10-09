@@ -240,6 +240,12 @@ section {
     width: 100%;
 }
 
+.signed-in-panel h1 {
+    color: #1b4d6b;
+    font-size: 28px;
+    overflow-wrap: anywhere;
+}
+
 .auth-message {
     margin-top: 16px;
     min-height: 1.6em;
