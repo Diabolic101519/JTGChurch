@@ -43,9 +43,12 @@ async function loadFirebaseConfig() {
 
 const loadedFirebaseConfig = await loadFirebaseConfig();
 export const firebaseConfigured = loadedFirebaseConfig !== null;
+const isLocalDevelopmentHost = ['localhost', '127.0.0.1', '::1'].includes(window.location.hostname);
 export const firebaseSetupMessage = firebaseConfigured
     ? ''
-    : 'Firebase could not be configured automatically. Open this site through Firebase Hosting, or add the Firebase web app settings in firebase-config.js.';
+    : isLocalDevelopmentHost
+        ? 'Firebase Hosting auto-configuration is unavailable on this local development server. Open the deployed Firebase Hosting site, or add a Firebase Web app configuration to firebase-config.js. Sign-in, chat, and uploads are unavailable until Firebase is configured.'
+        : 'Firebase Hosting did not provide a valid Web app configuration, and firebase-config.js has no valid fallback. Register a Web app in the Firebase project used for Hosting, or add its settings to firebase-config.js.';
 
 /* Keep configuration values client-side; never put Firebase Admin credentials here. */
 const app = loadedFirebaseConfig ? initializeApp(loadedFirebaseConfig) : null;

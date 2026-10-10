@@ -85,7 +85,7 @@ if (logoutButton && auth) {
 function showFirebaseSetupMessage() {
     if (setupStatus) {
         setupStatus.hidden = false;
-        setupStatus.textContent = `${firebaseSetupMessage} Deploy the Firestore and Storage rules before using accounts, chat, or uploads.`;
+        setupStatus.textContent = firebaseSetupMessage;
     }
     document.querySelectorAll('.community-form input, .community-form textarea, .community-form button')
         .forEach(control => { control.disabled = true; });
