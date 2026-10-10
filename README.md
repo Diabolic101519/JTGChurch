@@ -24,14 +24,30 @@ Website for Jesus True Gospel Church.
 
 ## Firebase setup
 
-The site needs a Firebase project before sign-in, chat, or uploads can work:
+Firebase cannot create a project from this static website. Create and connect the project once in the Firebase Console; after deployment to that project, Firebase Hosting supplies the Web app configuration automatically at its reserved `/__/firebase/init.json` endpoint. The app checks that endpoint before using the optional local fallback in `firebase-config.js`.
 
-1. Create a Firebase project and register a Web app in the Firebase console.
-2. Enable **Authentication → Sign-in method → Email/Password**.
-3. Create a Cloud Firestore database, a Cloud Storage bucket, and a Firebase Realtime Database for online-member presence.
-4. For Firebase Hosting, deploy the site to your Firebase project; the app automatically discovers its Web app config from Firebase Hosting's reserved `/__/firebase/init.json` endpoint. For other hosts, copy the Web app settings into `firebase-config.js`. The browser or operating system cannot determine a Firebase project on its own.
-5. Install the Firebase CLI, select your project with `firebase use --add`, then deploy the included security rules with `firebase deploy --only firestore:rules,database,storage:rules`.
-6. Serve the site over HTTPS (or localhost) so Firebase Authentication and browser security APIs work. To host with Firebase Hosting, run `firebase deploy --only hosting` after selecting the project.
+1. In the [Firebase Console](https://console.firebase.google.com/), create a Firebase project, then add a **Web app** to that project. Registering the Web app is required for Hosting's config endpoint to return its settings.
+2. In **Authentication → Sign-in method**, enable **Email/Password**.
+3. Create a Cloud Firestore database, a Cloud Storage bucket, and a Realtime Database for online-member presence.
+4. Install the Firebase CLI if needed, then authenticate and associate this local repository with the project:
+
+   ```sh
+   npm install -g firebase-tools
+   firebase login
+   firebase use --add
+   ```
+
+   When prompted by `firebase use --add`, select the project created above.
+5. Deploy the site and the included security rules:
+
+   ```sh
+   firebase deploy --only hosting,firestore:rules,database,storage:rules
+   ```
+
+   Open the deployed Firebase Hosting URL (usually `https://<project-id>.web.app`). The app reads the configuration for the Hosting project serving that URL. No Firebase config values need to be copied into the source files for Firebase Hosting.
+6. For local development or a non-Firebase host, copy the Web app settings into `firebase-config.js` instead. A browser cannot infer which Firebase project to use on an unrelated host. Serve the site over HTTPS (or localhost) so Firebase Authentication and browser security APIs work.
+
+If Hosting's `/__/firebase/init.json` endpoint is unavailable or does not return a valid Web app configuration, verify that the Web app is registered in the same Firebase project used by Hosting and that the page is being served from that project's Hosting URL. The app then falls back to `firebase-config.js`.
 
 The Firestore rules allow signed-in members to read shared messages and posts, restrict deletion to the message sender, and store each member's read receipts in their own private collection. Storage rules require the uploader's own account folder, restrict Activity posts to images/videos up to 150,000,000 bytes (150 MB), and enforce a 50,000,000-byte (50 MB) limit for Messenger videos; other Messenger file types have no app-imposed size cap. Profile pictures are limited to 5 MB. Client checks provide feedback, while Firebase rules enforce these limits and permissions if a client bypasses the page. Presence uses one connection entry per browser session so multiple open tabs do not incorrectly mark a member offline. It also needs the Realtime Database URL in the Firebase Hosting app config or `firebase-config.js`; if it is missing, chat remains available and shows that online status is unavailable.
 
