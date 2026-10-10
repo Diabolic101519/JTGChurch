@@ -1,12 +1,16 @@
 import {
     addDoc,
     collection,
+    deleteDoc,
+    doc,
     limit,
     limitToLast,
     onSnapshot,
     orderBy,
     query,
-    serverTimestamp
+    serverTimestamp,
+    setDoc,
+    where
 } from 'https://www.gstatic.com/firebasejs/11.10.0/firebase-firestore.js';
 import {
     deleteObject,
@@ -16,17 +20,13 @@ import {
     uploadBytesResumable
 } from 'https://www.gstatic.com/firebasejs/11.10.0/firebase-storage.js';
 import {
-    onDisconnect,
-    onValue,
-    ref as databaseRef,
-    serverTimestamp as databaseServerTimestamp,
-    set
-} from 'https://www.gstatic.com/firebasejs/11.10.0/firebase-database.js';
-import { db, realtimeDb, storage } from './firebase.js';
+    getFirebaseStorage,
+    getFirestoreDb,
+    getRealtimeDatabase
+} from './firebase.js';
 
 const maximumUploadBytes = 150 * 1000 * 1000;
 const maximumMessengerVideoBytes = 50 * 1000 * 1000;
-const maximumProfilePhotoBytes = 5 * 1024 * 1024;
 const defaultProfilePhoto = 'images/default-avatar.svg';
 
 function isTrustedProfilePhoto(photoURL) {
@@ -239,16 +239,12 @@ function createMessengerWidget() {
     widget.append(toggle, panel);
     document.body.append(widget);
 
-    let unreadCount = 0;
     const setOpen = open => {
         panel.hidden = !open;
         toggle.setAttribute('aria-expanded', String(open));
         toggle.setAttribute('aria-label', open ? 'Close Messenger' : 'Open Messenger');
         widget.classList.toggle('is-open', open);
         if (open) {
-            unreadCount = 0;
-            unreadBadge.hidden = true;
-            unreadBadge.textContent = '';
             messageInput.focus();
             messageList.scrollTop = messageList.scrollHeight;
         }
@@ -282,19 +278,20 @@ function createMessengerWidget() {
         clearSelectedFile() {
             showSelectedFile(null);
         },
-        addUnreadMessage() {
-            unreadCount += 1;
-            unreadBadge.textContent = unreadCount > 9 ? '9+' : String(unreadCount);
-            unreadBadge.hidden = false;
+        setUnreadCount(count) {
+            unreadBadge.textContent = count > 9 ? '9+' : String(count);
+            unreadBadge.hidden = count === 0;
+            unreadBadge.setAttribute('aria-label', `${count} unread messages`);
         }
     };
 }
 
-function createChatMessage(documentSnapshot, currentUser) {
+function createChatMessage(documentSnapshot, currentUser, readMessageIds, markAsRead, deleteMessage) {
     const message = documentSnapshot.data();
     const item = document.createElement('li');
     item.className = 'chat-message';
-    item.dataset.own = String(message.uid === currentUser.uid);
+    const isOwnMessage = message.uid === currentUser.uid;
+    item.dataset.own = String(isOwnMessage);
 
     const avatar = createAvatar(message.photoURL, message.displayName, 'chat-message-avatar');
     const bubble = document.createElement('div');
@@ -312,6 +309,18 @@ function createChatMessage(documentSnapshot, currentUser) {
     body.textContent = message.body;
     bubble.append(header);
     if (message.body) bubble.append(body);
+
+    const actions = document.createElement('div');
+    actions.className = 'chat-message-actions';
+    if (isOwnMessage) {
+        const deleteButton = document.createElement('button');
+        deleteButton.className = 'messenger-delete-message';
+        deleteButton.type = 'button';
+        deleteButton.textContent = 'Delete';
+        deleteButton.setAttribute('aria-label', 'Delete your message');
+        deleteButton.addEventListener('click', () => deleteMessage(documentSnapshot));
+        actions.append(deleteButton);
+    }
 
     if (message.attachment) {
         const attachmentUrl = new URL(message.attachment.downloadUrl);
@@ -346,11 +355,42 @@ function createChatMessage(documentSnapshot, currentUser) {
         }
     }
 
+    bubble.append(actions);
     item.append(avatar, bubble);
+    bubble.addEventListener('click', () => {
+        if (!isOwnMessage && item.dataset.read === 'false') {
+            markAsRead(documentSnapshot.id);
+        }
+    });
+    updateChatMessageReadState(
+        item,
+        documentSnapshot.id,
+        readMessageIds.has(documentSnapshot.id),
+        markAsRead
+    );
     return item;
 }
 
-function initializePresence(currentUser, messenger) {
+function updateChatMessageReadState(item, messageId, isRead, markAsRead) {
+    item.dataset.read = String(isRead);
+    if (item.dataset.own === 'true') return;
+
+    const actions = item.querySelector('.chat-message-actions');
+    const readState = document.createElement('span');
+    readState.className = 'messenger-message-read-state';
+    readState.textContent = isRead ? 'Read' : 'Unread';
+    actions.replaceChildren(readState);
+    if (!isRead) {
+        const markReadButton = document.createElement('button');
+        markReadButton.className = 'messenger-mark-read';
+        markReadButton.type = 'button';
+        markReadButton.textContent = 'Mark as read';
+        markReadButton.addEventListener('click', () => markAsRead(messageId));
+        actions.append(markReadButton);
+    }
+}
+
+function initializePresence(currentUser, messenger, realtimeDb, databaseSdk) {
     if (!realtimeDb) {
         const status = document.createElement('span');
         status.className = 'messenger-presence-unavailable';
@@ -359,8 +399,17 @@ function initializePresence(currentUser, messenger) {
         return () => {};
     }
 
+    const {
+        onDisconnect,
+        onValue,
+        remove,
+        ref: databaseRef,
+        serverTimestamp: databaseServerTimestamp,
+        set
+    } = databaseSdk;
     const presenceRoot = databaseRef(realtimeDb, 'presence');
-    const ownPresence = databaseRef(realtimeDb, `presence/${currentUser.uid}`);
+    const presenceSessionId = crypto.randomUUID();
+    const ownPresence = databaseRef(realtimeDb, `presence/${currentUser.uid}/${presenceSessionId}`);
     const connectedRef = databaseRef(realtimeDb, '.info/connected');
     const displayName = (currentUser.displayName || currentUser.email || 'Church member').slice(0, 100);
     const photoURL = isTrustedProfilePhoto(currentUser.photoURL) ? currentUser.photoURL : '';
@@ -369,10 +418,12 @@ function initializePresence(currentUser, messenger) {
     subscriptions.push(onValue(presenceRoot, snapshot => {
         const onlineMembers = [];
         snapshot.forEach(member => {
-            const profile = member.val();
-            if (profile && profile.state === 'online') {
-                onlineMembers.push({ uid: member.key, ...profile });
-            }
+            const presence = member.val();
+            const sessions = presence && presence.state
+                ? [presence]
+                : Object.values(presence || {});
+            const onlineSession = sessions.find(session => session && session.state === 'online');
+            if (onlineSession) onlineMembers.push({ uid: member.key, ...onlineSession });
         });
         onlineMembers.sort((first, second) => first.displayName.localeCompare(second.displayName));
         messenger.onlineUsers.replaceChildren();
@@ -407,12 +458,7 @@ function initializePresence(currentUser, messenger) {
     subscriptions.push(onValue(connectedRef, async snapshot => {
         if (snapshot.val() !== true) return;
         try {
-            await onDisconnect(ownPresence).set({
-                state: 'offline',
-                displayName,
-                photoURL,
-                lastChanged: databaseServerTimestamp()
-            });
+            await onDisconnect(ownPresence).remove();
             await set(ownPresence, {
                 state: 'online',
                 displayName,
@@ -430,18 +476,13 @@ function initializePresence(currentUser, messenger) {
 
     return () => {
         subscriptions.forEach(unsubscribe => unsubscribe());
-        set(ownPresence, {
-            state: 'offline',
-            displayName,
-            photoURL,
-            lastChanged: databaseServerTimestamp()
-        }).then(() => onDisconnect(ownPresence).cancel()).catch(error => {
+        remove(ownPresence).then(() => onDisconnect(ownPresence).cancel()).catch(error => {
             console.error('Could not clear online status:', error);
         });
     };
 }
 
-function initializeChat(currentUser) {
+function initializeChat(currentUser, db, storage, realtimeDb, databaseSdk) {
     if (!db) return;
     const messenger = createMessengerWidget();
     const {
@@ -458,38 +499,156 @@ function initializeChat(currentUser) {
         orderBy('createdAt', 'asc'),
         limitToLast(100)
     );
+    const readReceipts = collection(db, 'users', currentUser.uid, 'messageReads');
+    let latestMessageSnapshot = null;
+    let readMessageIds = new Set();
+    let unsubscribeReadReceipts = null;
+    let currentReadBoundary = null;
+    let readListenerVersion = 0;
     let firstSnapshot = true;
-    const seenMessageIds = new Set();
-    const unsubscribeMessages = onSnapshot(messagesQuery, snapshot => {
-        const shouldScroll = firstSnapshot || messageList.scrollHeight - messageList.scrollTop - messageList.clientHeight < 80;
+    const messageElements = new Map();
+    let emptyMessageState = null;
+
+    const renderMessages = forceScroll => {
+        const shouldScroll = forceScroll
+            || messageList.scrollHeight - messageList.scrollTop - messageList.clientHeight < 80;
+        let unreadCount = 0;
         const visibleMessageIds = new Set();
-        messageList.replaceChildren();
-        snapshot.forEach(documentSnapshot => {
+        const documents = latestMessageSnapshot ? latestMessageSnapshot.docs : [];
+        documents.forEach(documentSnapshot => {
+            const message = documentSnapshot.data();
+            const isUnread = message.uid !== currentUser.uid && !readMessageIds.has(documentSnapshot.id);
+            if (isUnread) unreadCount += 1;
+            visibleMessageIds.add(documentSnapshot.id);
             try {
-                messageList.append(createChatMessage(documentSnapshot, currentUser));
+                let item = messageElements.get(documentSnapshot.id);
+                if (!item) {
+                    item = createChatMessage(documentSnapshot, currentUser, readMessageIds, markAsRead, deleteMessage);
+                    messageElements.set(documentSnapshot.id, item);
+                } else {
+                    updateChatMessageReadState(
+                        item,
+                        documentSnapshot.id,
+                        readMessageIds.has(documentSnapshot.id),
+                        markAsRead
+                    );
+                }
             } catch (error) {
                 console.error(`Could not display message ${documentSnapshot.id}:`, error);
             }
-            const isNewMessage = !seenMessageIds.has(documentSnapshot.id);
-            seenMessageIds.add(documentSnapshot.id);
-            visibleMessageIds.add(documentSnapshot.id);
-            if (!firstSnapshot && isNewMessage && documentSnapshot.data().uid !== currentUser.uid && panel.hidden) {
-                messenger.addUnreadMessage();
+        });
+
+        for (const [messageId, item] of messageElements) {
+            if (!visibleMessageIds.has(messageId)) {
+                item.remove();
+                messageElements.delete(messageId);
             }
-        });
-        seenMessageIds.forEach(id => {
-            if (!visibleMessageIds.has(id)) seenMessageIds.delete(id);
-        });
-        if (snapshot.empty) {
-            const emptyState = document.createElement('li');
-            emptyState.textContent = 'No messages yet. Start the conversation.';
-            messageList.append(emptyState);
         }
+
+        if (documents.length === 0) {
+            if (!emptyMessageState) {
+                emptyMessageState = document.createElement('li');
+                emptyMessageState.textContent = 'No messages yet. Start the conversation.';
+            }
+            messageList.append(emptyMessageState);
+        } else if (emptyMessageState) {
+            emptyMessageState.remove();
+        }
+
+        let nextMessage = null;
+        for (let index = documents.length - 1; index >= 0; index -= 1) {
+            const item = messageElements.get(documents[index].id);
+            if (item && item.nextSibling !== nextMessage) {
+                messageList.insertBefore(item, nextMessage);
+            }
+            if (item) nextMessage = item;
+        }
+        messenger.setUnreadCount(unreadCount);
         if (shouldScroll) messageList.scrollTop = messageList.scrollHeight;
+    };
+
+    const subscribeToReadReceipts = snapshot => {
+        const oldestMessage = snapshot.docs[0];
+        const createdAt = oldestMessage && oldestMessage.data().createdAt;
+        const boundary = createdAt && typeof createdAt.toMillis === 'function'
+            ? createdAt.toMillis()
+            : null;
+        if (boundary === currentReadBoundary) return;
+
+        if (unsubscribeReadReceipts) unsubscribeReadReceipts();
+        unsubscribeReadReceipts = null;
+        currentReadBoundary = boundary;
+        readMessageIds = new Set();
+        const listenerVersion = ++readListenerVersion;
+
+        if (boundary === null) {
+            renderMessages(false);
+            return;
+        }
+
+        const readsQuery = query(readReceipts, where('readAt', '>=', createdAt));
+        unsubscribeReadReceipts = onSnapshot(readsQuery, receiptsSnapshot => {
+            if (listenerVersion !== readListenerVersion) return;
+            readMessageIds = new Set(receiptsSnapshot.docs.map(receipt => receipt.id));
+            renderMessages(false);
+        }, error => {
+            if (listenerVersion !== readListenerVersion) return;
+            setStatus(status, `Could not load message read status. ${getCommunityError(error)}`);
+        });
+    };
+
+    const unsubscribeMessages = onSnapshot(messagesQuery, snapshot => {
+        const shouldScroll = firstSnapshot
+            || messageList.scrollHeight - messageList.scrollTop - messageList.clientHeight < 80;
+        latestMessageSnapshot = snapshot;
+        subscribeToReadReceipts(snapshot);
+        renderMessages(shouldScroll);
         firstSnapshot = false;
     }, error => {
         setStatus(status, `Could not load chat messages. ${getCommunityError(error)}`);
     });
+
+    async function markAsRead(messageId) {
+        if (readMessageIds.has(messageId)) return;
+        readMessageIds.add(messageId);
+        renderMessages(false);
+        try {
+            await setDoc(doc(readReceipts, messageId), { readAt: serverTimestamp() });
+        } catch (error) {
+            readMessageIds.delete(messageId);
+            setStatus(status, `Could not mark this message as read. ${getCommunityError(error)}`);
+            renderMessages(false);
+        }
+    }
+
+    async function deleteMessage(documentSnapshot) {
+        const message = documentSnapshot.data();
+        if (!window.confirm('Delete this message for everyone?')) return;
+        try {
+            await deleteDoc(doc(db, 'messages', documentSnapshot.id));
+        } catch (error) {
+            setStatus(status, `Could not delete the message. ${getCommunityError(error)}`);
+            return;
+        }
+
+        const storagePath = message.attachment && message.attachment.storagePath;
+        if (storagePath) {
+            const ownerPrefix = `messages/${currentUser.uid}/`;
+            if (!storage || !storagePath.startsWith(ownerPrefix)) {
+                console.error('Deleted message attachment has no valid owner-scoped storage path.');
+                setStatus(status, 'Message deleted, but its attached file could not be removed.');
+                return;
+            }
+            try {
+                await deleteObject(ref(storage, storagePath));
+            } catch (error) {
+                console.error('Message was deleted, but its uploaded attachment could not be removed:', error);
+                setStatus(status, 'Message deleted, but its attached file could not be removed.');
+                return;
+            }
+        }
+        setStatus(status, 'Message deleted for everyone.', 'success');
+    }
 
     messageForm.addEventListener('submit', async event => {
         event.preventDefault();
@@ -510,6 +669,10 @@ function initializeChat(currentUser) {
         }
         if (file && file.type.startsWith('video/') && file.size > maximumMessengerVideoBytes) {
             setStatus(status, 'Messenger videos must be 50 MB or smaller.');
+            return;
+        }
+        if (file && !storage) {
+            setStatus(status, 'Attachments are unavailable because Firebase Storage is not configured.');
             return;
         }
 
@@ -565,12 +728,13 @@ function initializeChat(currentUser) {
         }
     });
 
-    const stopPresence = initializePresence(currentUser, messenger);
+    const stopPresence = initializePresence(currentUser, messenger, realtimeDb, databaseSdk);
     let stopped = false;
     return () => {
         if (stopped) return;
         stopped = true;
         unsubscribeMessages();
+        if (unsubscribeReadReceipts) unsubscribeReadReceipts();
         stopPresence();
         messenger.clearSelectedFile();
         messenger.widget.remove();
@@ -620,7 +784,7 @@ function createActivityPost(documentSnapshot) {
     return card;
 }
 
-function initializeActivityFeed() {
+function initializeActivityFeed(db) {
     const feed = document.getElementById('activity-feed');
     const status = document.getElementById('feed-status');
     if (!feed || !db) return () => {};
@@ -648,7 +812,7 @@ function initializeActivityFeed() {
     });
 }
 
-function initializePostUpload(currentUser) {
+function initializePostUpload(currentUser, db, storage) {
     const uploadForm = document.getElementById('upload-form');
     const fileInput = document.getElementById('activity-file');
     const captionInput = document.getElementById('activity-caption');
@@ -751,18 +915,26 @@ function initializePostUpload(currentUser) {
     };
 }
 
-export function initializeCommunity(currentUser) {
+export async function initializeCommunity(currentUser) {
+    const [db, storage, realtimeDb] = await Promise.all([
+        getFirestoreDb(),
+        getFirebaseStorage(),
+        getRealtimeDatabase()
+    ]);
+    const databaseSdk = realtimeDb
+        ? await import('https://www.gstatic.com/firebasejs/11.10.0/firebase-database.js')
+        : null;
     const hasActivityFeed = Boolean(document.getElementById('activity-feed'));
     if (hasActivityFeed && (!db || !storage)) {
         throw new Error('Firebase Firestore and Storage are not configured.');
     }
 
     const cleanups = [];
-    const chatCleanup = initializeChat(currentUser);
+    const chatCleanup = initializeChat(currentUser, db, storage, realtimeDb, databaseSdk);
     if (chatCleanup) cleanups.push(chatCleanup);
     if (hasActivityFeed) {
-        cleanups.push(initializeActivityFeed());
-        cleanups.push(initializePostUpload(currentUser));
+        cleanups.push(initializeActivityFeed(db));
+        cleanups.push(initializePostUpload(currentUser, db, storage));
     }
     return () => cleanups.forEach(cleanup => cleanup());
 }

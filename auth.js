@@ -4,13 +4,7 @@ import {
     signOut,
     updateProfile
 } from 'https://www.gstatic.com/firebasejs/11.10.0/firebase-auth.js';
-import {
-    deleteObject,
-    getDownloadURL,
-    ref,
-    uploadBytes
-} from 'https://www.gstatic.com/firebasejs/11.10.0/firebase-storage.js';
-import { auth, storage } from './firebase.js';
+import { auth, getFirebaseStorage } from './firebase.js';
 
 const maximumProfilePhotoBytes = 5 * 1024 * 1024;
 
@@ -143,9 +137,12 @@ export function initializeAuthForms() {
                 const credential = await createUserWithEmailAndPassword(auth, email, password);
                 let photoURL = '';
                 if (photo instanceof File && photo.size > 0) {
+                    const storage = await getFirebaseStorage();
                     if (!storage) {
                         photoWarning = ' Your account was created, but profile photo storage is not configured.';
                     } else {
+                        const { deleteObject, getDownloadURL, ref, uploadBytes } =
+                            await import('https://www.gstatic.com/firebasejs/11.10.0/firebase-storage.js');
                         profilePhotoReference = ref(storage, `profiles/${credential.user.uid}/avatar`);
                         try {
                             await uploadBytes(profilePhotoReference, photo, { contentType: photo.type });

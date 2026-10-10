@@ -130,9 +130,14 @@ function updateSignedInInterface(user) {
         communityUid = user.uid;
         const initializationId = ++communityInitializationId;
         import('./community.js')
-            .then(({ initializeCommunity }) => {
+            .then(async ({ initializeCommunity }) => {
                 if (initializationId !== communityInitializationId || auth.currentUser?.uid !== user.uid) return;
-                communityCleanup = initializeCommunity(user);
+                const cleanup = await initializeCommunity(user);
+                if (initializationId !== communityInitializationId || auth.currentUser?.uid !== user.uid) {
+                    cleanup();
+                    return;
+                }
+                communityCleanup = cleanup;
             })
             .catch(error => {
                 if (initializationId !== communityInitializationId) return;

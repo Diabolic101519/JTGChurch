@@ -3,8 +3,10 @@
     "presence": {
       ".read": "auth != null",
       "$uid": {
-        ".write": "auth != null && auth.uid === $uid",
-        ".validate": "newData.hasChildren(['state', 'displayName', 'photoURL', 'lastChanged']) && newData.child('state').isString() && (newData.child('state').val() === 'online' || newData.child('state').val() === 'offline') && newData.child('displayName').isString() && newData.child('displayName').val().length <= 100 && newData.child('photoURL').isString() && newData.child('photoURL').val().length <= 2048 && newData.child('lastChanged').isNumber()"
+        "$sessionId": {
+          ".write": "auth != null && auth.uid === $uid",
+          ".validate": "newData.hasChildren(['state', 'displayName', 'photoURL', 'lastChanged']) && newData.child('state').isString() && newData.child('state').val() === 'online' && newData.child('displayName').isString() && newData.child('displayName').val().length <= 100 && newData.child('photoURL').isString() && newData.child('photoURL').val().length <= 2048 && newData.child('lastChanged').isNumber()"
+        }
       }
     }
   }

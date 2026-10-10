@@ -796,6 +796,46 @@ section {
     min-width: 0;
 }
 
+.chat-message-actions {
+    display: flex;
+    margin-top: 5px;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 8px;
+}
+
+.messenger-message-read-state {
+    color: #5a6871;
+    font-size: 11px;
+}
+
+.chat-message[data-read="false"] .messenger-message-read-state {
+    color: #a13d32;
+    font-weight: bold;
+}
+
+.messenger-mark-read,
+.messenger-delete-message {
+    padding: 3px 7px;
+    border: 0;
+    border-radius: 10px;
+    background: rgba(255, 255, 255, .8);
+    color: #0759a3;
+    cursor: pointer;
+    font-size: 11px;
+    font-weight: bold;
+}
+
+.messenger-delete-message {
+    color: #9b2828;
+}
+
+.messenger-mark-read:focus-visible,
+.messenger-delete-message:focus-visible {
+    outline: 2px solid #087bea;
+    outline-offset: 2px;
+}
+
 .messenger-messages .chat-message-header {
     display: flex;
     justify-content: space-between;

@@ -45,7 +45,18 @@ service cloud.firestore {
           && request.resource.data.attachment.downloadUrl.matches('https://firebasestorage[.]googleapis[.]com/.*')
         ))
         && request.resource.data.createdAt == request.time;
-      allow update, delete: if false;
+      allow update: if false;
+      allow delete: if signedIn() && resource.data.uid == request.auth.uid;
+    }
+
+    match /users/{userId}/messageReads/{messageId} {
+      allow read: if signedIn() && request.auth.uid == userId;
+      allow create, update: if signedIn()
+        && request.auth.uid == userId
+        && request.resource.data.keys().hasAll(['readAt'])
+        && request.resource.data.keys().hasOnly(['readAt'])
+        && request.resource.data.readAt == request.time;
+      allow delete: if false;
     }
 
     match /posts/{postId} {

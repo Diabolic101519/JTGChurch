@@ -1,8 +1,5 @@
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/11.10.0/firebase-app.js';
 import { getAuth } from 'https://www.gstatic.com/firebasejs/11.10.0/firebase-auth.js';
-import { getFirestore } from 'https://www.gstatic.com/firebasejs/11.10.0/firebase-firestore.js';
-import { getStorage } from 'https://www.gstatic.com/firebasejs/11.10.0/firebase-storage.js';
-import { getDatabase } from 'https://www.gstatic.com/firebasejs/11.10.0/firebase-database.js';
 import { firebaseConfig } from './firebase-config.js';
 
 const requiredConfigKeys = [
@@ -54,6 +51,37 @@ export const firebaseSetupMessage = firebaseConfigured
 const app = loadedFirebaseConfig ? initializeApp(loadedFirebaseConfig) : null;
 
 export const auth = app ? getAuth(app) : null;
-export const db = app ? getFirestore(app) : null;
-export const storage = app ? getStorage(app) : null;
-export const realtimeDb = app && loadedFirebaseConfig.databaseURL ? getDatabase(app) : null;
+const hasRealtimeDatabaseURL = typeof loadedFirebaseConfig?.databaseURL === 'string'
+    && loadedFirebaseConfig.databaseURL.trim() !== ''
+    && !loadedFirebaseConfig.databaseURL.startsWith('REPLACE_');
+
+let firestoreInstancePromise = null;
+let storageInstancePromise = null;
+let realtimeDatabaseInstancePromise = null;
+
+export function getFirestoreDb() {
+    if (!app) return Promise.resolve(null);
+    if (!firestoreInstancePromise) {
+        firestoreInstancePromise = import('https://www.gstatic.com/firebasejs/11.10.0/firebase-firestore.js')
+            .then(({ getFirestore }) => getFirestore(app));
+    }
+    return firestoreInstancePromise;
+}
+
+export function getFirebaseStorage() {
+    if (!app) return Promise.resolve(null);
+    if (!storageInstancePromise) {
+        storageInstancePromise = import('https://www.gstatic.com/firebasejs/11.10.0/firebase-storage.js')
+            .then(({ getStorage }) => getStorage(app));
+    }
+    return storageInstancePromise;
+}
+
+export function getRealtimeDatabase() {
+    if (!app || !hasRealtimeDatabaseURL) return Promise.resolve(null);
+    if (!realtimeDatabaseInstancePromise) {
+        realtimeDatabaseInstancePromise = import('https://www.gstatic.com/firebasejs/11.10.0/firebase-database.js')
+            .then(({ getDatabase }) => getDatabase(app));
+    }
+    return realtimeDatabaseInstancePromise;
+}
