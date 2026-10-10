@@ -367,6 +367,14 @@ footer {
     cursor: pointer;
     color: white;
     user-select: none;
+    border: 0;
+    background: transparent;
+    line-height: 1;
+}
+
+.menu-toggle:focus-visible {
+    outline: 2px solid #fff;
+    outline-offset: 4px;
 }
 
 @media (max-width:768px) {
@@ -377,15 +385,22 @@ footer {
     nav {
         justify-content: space-between;
         align-items: center;
-        padding-right: 52px;
+        padding-right: 0;
     }
 
     nav h2 {
         margin: 0;
+        max-width: min(60vw, calc(100% - 160px));
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
     }
 
     .menu-toggle {
         display: block;
+        position: absolute;
+        top: 0;
+        right: 0;
     }
 
     .account-menu {
@@ -393,7 +408,7 @@ footer {
         top: 2px;
         right: 52px;
         margin: 0;
-        max-width: calc(100% - 180px);
+        max-width: min(28vw, 180px);
     }
 
     .account-name {

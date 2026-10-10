@@ -28,8 +28,10 @@ activityLinks.forEach(link => {
 
 if (toggle && menu) {
     toggle.addEventListener('click', () => {
-        menu.classList.toggle('show');
-        toggle.innerHTML = menu.classList.contains('show') ? '&times;' : '&#9776;';
+        const isOpen = menu.classList.toggle('show');
+        toggle.textContent = isOpen ? '\u00d7' : '\u2630';
+        toggle.setAttribute('aria-expanded', String(isOpen));
+        toggle.setAttribute('aria-label', isOpen ? 'Close navigation menu' : 'Open navigation menu');
     });
 }
 
@@ -42,7 +44,9 @@ links.forEach(link => {
 
         if (window.innerWidth <= 768 && menu && toggle) {
             menu.classList.remove('show');
-            toggle.innerHTML = '&#9776;';
+            toggle.textContent = '\u2630';
+            toggle.setAttribute('aria-expanded', 'false');
+            toggle.setAttribute('aria-label', 'Open navigation menu');
         }
     });
 });
