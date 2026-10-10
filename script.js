@@ -1,3 +1,7 @@
+import { onAuthStateChanged, signOut } from 'https://www.gstatic.com/firebasejs/11.10.0/firebase-auth.js';
+import { auth, firebaseConfigured, firebaseSetupMessage } from './firebase.js';
+import { initializeAuthForms } from './auth.js';
+
 const currentPage = window.location.pathname.split('/').pop() || 'index.html';
 const links = document.querySelectorAll('nav a');
 const menu = document.getElementById('nav-menu');
@@ -5,26 +9,16 @@ const toggle = document.getElementById('menu-toggle');
 const accountMenu = document.getElementById('account-menu');
 const accountName = document.getElementById('account-name');
 const logoutButton = document.getElementById('logout-button');
-const authContent = document.getElementById('auth-content');
 const homeAuthCard = document.querySelector('.home-auth-card');
 const heroLayout = document.getElementById('hero-layout');
 const activityLinks = document.querySelectorAll('nav a[href="activities.html"]');
-let isSignedIn = false;
+const setupStatus = document.getElementById('firebase-setup-status');
+let communityInitialized = false;
 
 const activeLink = document.querySelector(`nav a[href="${currentPage}"]`);
-if (activeLink) {
-    activeLink.classList.add('active');
-}
+if (activeLink) activeLink.classList.add('active');
 
-activityLinks.forEach(link => {
-    link.setAttribute('aria-disabled', 'true');
-    link.tabIndex = -1;
-    link.addEventListener('click', event => {
-        if (link.getAttribute('aria-disabled') === 'true') {
-            event.preventDefault();
-        }
-    });
-});
+initializeAuthForms();
 
 if (toggle && menu) {
     toggle.addEventListener('click', () => {
@@ -36,11 +30,13 @@ if (toggle && menu) {
 }
 
 links.forEach(link => {
-    link.addEventListener('click', function () {
-        if (this.getAttribute('aria-disabled') === 'true') return;
-
+    link.addEventListener('click', event => {
+        if (link.getAttribute('aria-disabled') === 'true') {
+            event.preventDefault();
+            return;
+        }
         links.forEach(item => item.classList.remove('active'));
-        this.classList.add('active');
+        link.classList.add('active');
 
         if (window.innerWidth <= 768 && menu && toggle) {
             menu.classList.remove('show');
@@ -50,35 +46,6 @@ links.forEach(link => {
         }
     });
 });
-
-const storedUser = sessionStorage.getItem('jtg-church-user');
-if (storedUser && accountMenu && accountName) {
-    try {
-        const user = JSON.parse(storedUser);
-        if (typeof user.name === 'string' && user.name.trim() && typeof user.email === 'string') {
-            isSignedIn = true;
-            activityLinks.forEach(link => {
-                link.setAttribute('aria-disabled', 'false');
-                link.removeAttribute('tabindex');
-            });
-            accountName.textContent = user.name;
-            accountMenu.hidden = false;
-            if (authContent && homeAuthCard && heroLayout) {
-                authContent.hidden = true;
-                homeAuthCard.hidden = true;
-                heroLayout.classList.add('is-signed-in');
-            }
-        } else {
-            sessionStorage.removeItem('jtg-church-user');
-        }
-    } catch {
-        sessionStorage.removeItem('jtg-church-user');
-    }
-}
-
-if (currentPage === 'activities.html' && !isSignedIn) {
-    window.location.replace('auth.html');
-}
 
 if (accountMenu && accountName) {
     const setAccountMenuExpanded = expanded => {
@@ -95,9 +62,84 @@ if (accountMenu && accountName) {
     });
 }
 
-if (logoutButton) {
-    logoutButton.addEventListener('click', () => {
-        sessionStorage.removeItem('jtg-church-user');
-        window.location.href = 'index.html';
+if (logoutButton && auth) {
+    logoutButton.addEventListener('click', async () => {
+        try {
+            await signOut(auth);
+            window.location.href = 'index.html';
+        } catch (error) {
+            console.error('Firebase sign out failed:', error);
+            window.alert('Could not log out. Please try again.');
+        }
+    });
+}
+
+function showFirebaseSetupMessage() {
+    if (setupStatus) {
+        setupStatus.hidden = false;
+        setupStatus.textContent = `${firebaseSetupMessage} Deploy the Firestore and Storage rules before using accounts, chat, or uploads.`;
+    }
+    document.querySelectorAll('.auth-form input, .auth-form button, .community-form input, .community-form textarea, .community-form button')
+        .forEach(control => { control.disabled = true; });
+}
+
+function updateSignedInInterface(user) {
+    activityLinks.forEach(link => {
+        link.setAttribute('aria-disabled', String(!user));
+        if (user) link.removeAttribute('tabindex');
+        else link.tabIndex = -1;
+    });
+
+    if (accountMenu && accountName) {
+        accountMenu.hidden = !user;
+        if (user) accountName.textContent = user.displayName || user.email || 'Church member';
+    }
+
+    if (homeAuthCard && heroLayout) {
+        homeAuthCard.hidden = Boolean(user);
+        heroLayout.classList.toggle('is-signed-in', Boolean(user));
+    }
+
+    const authSection = document.querySelector('.auth-section');
+    const signedInNotice = document.getElementById('signed-in-notice');
+    if (authSection && signedInNotice) {
+        authSection.hidden = Boolean(user);
+        signedInNotice.hidden = !user;
+    }
+
+    if (setupStatus && user) setupStatus.hidden = true;
+
+    if (user && !communityInitialized) {
+        communityInitialized = true;
+        import('./community.js')
+            .then(({ initializeCommunity }) => initializeCommunity(user))
+            .catch(error => {
+                console.error('Could not initialize church chat and activity posts:', error);
+                if (setupStatus) {
+                    setupStatus.hidden = false;
+                    setupStatus.textContent = 'Could not load church chat or activity posts. Refresh the page and try again.';
+                }
+            });
+    }
+
+    if (currentPage === 'activities.html') {
+        if (!user) {
+            if (firebaseConfigured) window.location.replace('auth.html');
+            return;
+        }
+    }
+}
+
+if (!firebaseConfigured || !auth) {
+    showFirebaseSetupMessage();
+    updateSignedInInterface(null);
+} else {
+    onAuthStateChanged(auth, updateSignedInInterface, error => {
+        console.error('Firebase authentication state could not be loaded:', error);
+        if (setupStatus) {
+            setupStatus.hidden = false;
+            setupStatus.textContent = 'Could not verify your sign-in. Check your connection and refresh the page.';
+        }
+        if (currentPage === 'activities.html') window.location.replace('auth.html');
     });
 }

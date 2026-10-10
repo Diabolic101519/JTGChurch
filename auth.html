@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'; frame-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' https://images.unsplash.com; font-src 'self'; connect-src 'self'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'; frame-src 'none'; script-src 'self' https://www.gstatic.com; style-src 'self'; img-src 'self' https://images.unsplash.com https://firebasestorage.googleapis.com https://www.google.com blob:; media-src 'self' https://firebasestorage.googleapis.com blob:; font-src 'self'; connect-src 'self' https://*.googleapis.com https://*.firebaseio.com wss://*.firebaseio.com">
 <meta name="referrer" content="strict-origin-when-cross-origin">
 <title>Login / Sign Up | Jesus True Gospel Church</title>
 <link rel="stylesheet" href="styles.css">
@@ -34,6 +34,7 @@
 <main>
 <section class="auth-section">
     <div class="auth-card">
+        <p id="firebase-setup-status" class="setup-status" role="status" aria-live="polite" hidden></p>
         <h1>Welcome</h1>
         <p>Sign in or create an account.</p>
 
@@ -65,6 +66,12 @@
         </div>
     </div>
 </section>
+<section id="signed-in-notice" class="auth-section" hidden>
+    <div class="auth-card">
+        <h1>You are already signed in</h1>
+        <p>Go to the home page or open the Activity page from the menu.</p>
+    </div>
+</section>
 </main>
 
 <footer>
@@ -80,7 +87,6 @@
         </form>
     </div>
 </dialog>
-<script src="script.js"></script>
-<script src="auth.js"></script>
+<script type="module" src="script.js"></script>
 </body>
 </html>

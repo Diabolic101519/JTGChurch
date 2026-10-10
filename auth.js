@@ -1,7 +1,11 @@
-const databaseName = 'jtg-church-accounts';
-const databaseVersion = 1;
-const passwordIterations = 310000;
-const encoder = new TextEncoder();
+import {
+    createUserWithEmailAndPassword,
+    signInWithEmailAndPassword,
+    signOut,
+    updateProfile
+} from 'https://www.gstatic.com/firebasejs/11.10.0/firebase-auth.js';
+import { auth, firebaseConfigured } from './firebase.js';
+
 const authDialog = document.getElementById('auth-dialog');
 const authDialogMessage = document.getElementById('auth-dialog-message');
 const authDialogTitle = document.getElementById('auth-dialog-title');
@@ -10,92 +14,6 @@ const loginTab = document.getElementById('login-tab');
 const signupTab = document.getElementById('signup-tab');
 const loginPanel = document.getElementById('login-panel');
 const signupPanel = document.getElementById('signup-panel');
-
-function openDatabase() {
-    return new Promise((resolve, reject) => {
-        const request = indexedDB.open(databaseName, databaseVersion);
-        let blocked = false;
-
-        request.onupgradeneeded = () => {
-            const database = request.result;
-            if (!database.objectStoreNames.contains('accounts')) {
-                database.createObjectStore('accounts', { keyPath: 'email' });
-            }
-        };
-        request.onsuccess = () => {
-            if (blocked) {
-                request.result.close();
-                return;
-            }
-            resolve(request.result);
-        };
-        request.onerror = () => reject(request.error || new Error('Could not open the account database.'));
-        request.onblocked = () => {
-            blocked = true;
-            reject(new Error('The account database is blocked by another open page. Close other site tabs and try again.'));
-        };
-    });
-}
-
-function withAccountStore(mode, operation) {
-    return openDatabase().then(database => new Promise((resolve, reject) => {
-        const transaction = database.transaction('accounts', mode);
-        const store = transaction.objectStore('accounts');
-        let result;
-
-        transaction.oncomplete = () => {
-            database.close();
-            resolve(result);
-        };
-        transaction.onerror = () => {
-            database.close();
-            reject(transaction.error || new Error('The account database operation failed.'));
-        };
-        transaction.onabort = () => {
-            database.close();
-            reject(transaction.error || new Error('The account database operation was cancelled.'));
-        };
-
-        try {
-            operation(store, value => { result = value; });
-        } catch (error) {
-            database.close();
-            reject(error);
-        }
-    }));
-}
-
-function findAccount(email) {
-    return withAccountStore('readonly', (store, setResult) => {
-        const request = store.get(email);
-        request.onsuccess = () => setResult(request.result);
-    });
-}
-
-function saveAccount(account) {
-    return withAccountStore('readwrite', (store, setResult) => {
-        const request = store.add(account);
-        request.onsuccess = () => setResult(true);
-        request.onerror = event => {
-            if (request.error && request.error.name === 'ConstraintError') {
-                event.preventDefault();
-                event.stopPropagation();
-                setResult(false);
-            }
-        };
-    });
-}
-
-async function hashPassword(password, salt) {
-    const key = await crypto.subtle.importKey('raw', encoder.encode(password), 'PBKDF2', false, ['deriveBits']);
-    const bits = await crypto.subtle.deriveBits({
-        name: 'PBKDF2',
-        salt,
-        iterations: passwordIterations,
-        hash: 'SHA-256'
-    }, key, 256);
-    return Array.from(new Uint8Array(bits), byte => byte.toString(16).padStart(2, '0')).join('');
-}
 
 function showPopup(text, type = 'error') {
     if (!authDialog || !authDialogMessage) {
@@ -135,19 +53,28 @@ function validateForm(form) {
     return false;
 }
 
-function normalizeEmail(email) {
-    return email.trim().toLowerCase();
-}
-
-function bytesToHex(bytes) {
-    return Array.from(bytes, byte => byte.toString(16).padStart(2, '0')).join('');
-}
-
-function hexToBytes(hex) {
-    if (!/^(?:[0-9a-f]{2})+$/i.test(hex)) {
-        throw new Error('The saved account data is invalid.');
+function getAuthErrorMessage(error, action) {
+    switch (error.code) {
+        case 'auth/email-already-in-use':
+            return 'An account with this email already exists. Try logging in instead.';
+        case 'auth/invalid-credential':
+        case 'auth/user-not-found':
+        case 'auth/wrong-password':
+            return 'Invalid email or password.';
+        case 'auth/invalid-email':
+            return 'Please enter a valid email address.';
+        case 'auth/weak-password':
+            return 'Password must be at least 8 characters long.';
+        case 'auth/operation-not-allowed':
+            return 'Email and password sign-in is not enabled for this Firebase project.';
+        case 'auth/too-many-requests':
+            return 'Too many attempts. Please wait a while and try again.';
+        case 'auth/network-request-failed':
+            return 'Could not reach the sign-in service. Check your connection and try again.';
+        default:
+            console.error(`Firebase ${action} failed:`, error);
+            return `Could not ${action}. Please try again.`;
     }
-    return Uint8Array.from(hex.match(/.{2}/g), byte => parseInt(byte, 16));
 }
 
 function showPanel(panelName) {
@@ -158,71 +85,69 @@ function showPanel(panelName) {
     if (signupTab) signupTab.setAttribute('aria-selected', String(!isLogin));
 }
 
-if (loginTab) loginTab.addEventListener('click', () => showPanel('login'));
-if (signupTab) signupTab.addEventListener('click', () => showPanel('signup'));
+export function initializeAuthForms() {
+    if (loginTab) loginTab.addEventListener('click', () => showPanel('login'));
+    if (signupTab) signupTab.addEventListener('click', () => showPanel('signup'));
 
-const signupForm = document.getElementById('signup-form');
-if (signupForm) signupForm.addEventListener('submit', async event => {
-    event.preventDefault();
-    const form = event.currentTarget;
-    if (!validateForm(form)) return;
-    const formData = new FormData(form);
-    const email = normalizeEmail(formData.get('email'));
-    const name = formData.get('name').trim();
-    const password = formData.get('password');
+    const signupForm = document.getElementById('signup-form');
+    if (signupForm) {
+        signupForm.addEventListener('submit', async event => {
+            event.preventDefault();
+            if (!validateForm(signupForm)) return;
+            if (!auth) {
+                showPopup('Firebase is not configured yet. Follow the Firebase setup steps in README.md.');
+                return;
+            }
 
-    try {
-        const salt = crypto.getRandomValues(new Uint8Array(16));
-        const account = {
-            email,
-            name,
-            salt: bytesToHex(salt),
-            passwordHash: await hashPassword(password, salt)
-        };
-        const saved = await saveAccount(account);
-        if (!saved) {
-            showPopup('An account with this email already exists. Try logging in instead.');
-            return;
-        }
-        form.reset();
-        const loginEmail = document.getElementById('login-email');
-        if (loginEmail) loginEmail.value = email;
-        showPanel('login');
-        showPopup('Your account is ready. You can now log in.', 'success');
-    } catch (error) {
-        showPopup(error.message || 'Could not create the account. Please try again.');
+            const formData = new FormData(signupForm);
+            const email = String(formData.get('email')).trim().toLowerCase();
+            const name = String(formData.get('name')).trim();
+            const password = String(formData.get('password'));
+            if (!name) {
+                showPopup('Please enter your name.');
+                document.getElementById('signup-name')?.focus();
+                return;
+            }
+
+            try {
+                const credential = await createUserWithEmailAndPassword(auth, email, password);
+                await updateProfile(credential.user, { displayName: name });
+                await signOut(auth);
+                signupForm.reset();
+                const loginEmail = document.getElementById('login-email');
+                if (loginEmail) loginEmail.value = email;
+                showPanel('login');
+                showPopup('Your account is ready. You can now log in.', 'success');
+            } catch (error) {
+                showPopup(getAuthErrorMessage(error, 'create the account'));
+            }
+        });
     }
-});
 
-const loginForm = document.getElementById('login-form');
-if (loginForm) loginForm.addEventListener('submit', async event => {
-    event.preventDefault();
-    const form = event.currentTarget;
-    if (!validateForm(form)) return;
-    const formData = new FormData(form);
-    const email = normalizeEmail(formData.get('email'));
+    const loginForm = document.getElementById('login-form');
+    if (loginForm) {
+        loginForm.addEventListener('submit', async event => {
+            event.preventDefault();
+            if (!validateForm(loginForm)) return;
+            if (!auth) {
+                showPopup('Firebase is not configured yet. Follow the Firebase setup steps in README.md.');
+                return;
+            }
 
-    try {
-        const account = await findAccount(email);
-        if (!account) {
-            showPopup('Invalid Email/ Password');
-            return;
-        }
+            const formData = new FormData(loginForm);
+            const email = String(formData.get('email')).trim().toLowerCase();
+            const password = String(formData.get('password'));
 
-        const hash = await hashPassword(formData.get('password'), hexToBytes(account.salt));
-        if (hash !== account.passwordHash) {
-            showPopup('Invalid Email/ Password');
-            return;
-        }
-
-        sessionStorage.setItem('jtg-church-user', JSON.stringify({ email: account.email, name: account.name }));
-        window.location.href = 'index.html';
-    } catch (error) {
-        showPopup(error.message || 'Could not log in. Please try again.');
+            try {
+                await signInWithEmailAndPassword(auth, email, password);
+                window.location.href = 'index.html';
+            } catch (error) {
+                showPopup(getAuthErrorMessage(error, 'log in'));
+            }
+        });
     }
-});
 
-if (!window.indexedDB || !window.crypto || !window.crypto.subtle) {
-    document.querySelectorAll('.auth-form button').forEach(button => { button.disabled = true; });
-    showPopup('Account storage requires a modern browser and a secure connection (HTTPS or localhost).');
+    if (!firebaseConfigured) {
+        document.querySelectorAll('.auth-form button').forEach(button => { button.disabled = true; });
+    }
 }

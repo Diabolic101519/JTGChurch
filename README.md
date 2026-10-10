@@ -7,25 +7,41 @@ Website for Jesus True Gospel Church.
 - Church information pages with shared navigation and responsive styling.
 - Login and sign-up forms embedded on the home page, beside the welcome message on desktop and stacked on smaller screens.
 - A standalone login and sign-up page at [`auth.html`](./auth.html).
-- Local account storage using the browser's built-in IndexedDB, shared by both login interfaces.
-- Passwords stored as salted PBKDF2 hashes.
-- Sign Up creates an account with a name, email, and password. Email addresses are normalized to lowercase; passwords must be at least eight characters. Invalid form entries, storage errors, and duplicate email attempts are reported in a centered, accessible dialog.
-- A successful sign-up displays a confirmation dialog with a checkmark and switches to Login. Login errors, including missing accounts and incorrect passwords, are reported in the dialog as "Invalid Email/ Password"; custom validation prevents browser-native validation popups.
-- Successful login saves the signed-in user's name and email in the current browser session, then redirects to the home page. The home-page login and sign-up card is hidden while signed in, and the user's name appears in the upper-right navigation.
-- The Activity navigation link is disabled while signed out and enabled for a valid signed-in session. Opening `activities.html` directly while signed out redirects to `auth.html`.
+- Firebase Authentication with email/password sign-in and named member accounts.
+- Sign Up creates an account with a name, email, and password. Email addresses are normalized to lowercase; passwords must be at least eight characters. Invalid form entries, Firebase errors, and duplicate email attempts are reported in a centered, accessible dialog.
+- A successful sign-up displays a confirmation dialog with a checkmark and switches to Login. Login errors, including missing accounts and incorrect passwords, are reported without revealing whether an email is registered; custom validation prevents browser-native validation popups.
+- Successful login redirects to the home page, hides the login card, and shows the member's name in the navigation.
+- The Activity navigation link is disabled while signed out and enabled for a valid Firebase session. Opening `activities.html` directly while signed out redirects to `auth.html`.
+- Signed-in members can open a floating, Messenger-style chat from any page to send messages in the shared real-time church chat, and post images or videos to the shared Activity feed.
+- Activity uploads have a 150 MB per-file limit, show upload progress, and are restricted to images and videos by Firebase Storage rules.
 - Hover over or keyboard-focus the signed-in name to reveal Log Out; the account control works independently of the page navigation menu.
-- Logging out clears the current browser session and returns to the home page, where login and sign-up are available and Activity is disabled again.
+- Logging out ends the Firebase session and returns to the home page, where login and sign-up are available and Activity is disabled again.
 - The navigation also provides access to About Us, Church's, and Contact Us.
 - Pages apply a restrictive Content Security Policy and a strict cross-origin referrer policy.
 
+## Firebase setup
+
+The site needs a Firebase project before sign-in, chat, or uploads can work:
+
+1. Create a Firebase project and register a Web app in the Firebase console.
+2. Enable **Authentication → Sign-in method → Email/Password**.
+3. Create a Cloud Firestore database and a Cloud Storage bucket.
+4. For Firebase Hosting, deploy the site to your Firebase project; the app automatically discovers its Web app config from Firebase Hosting's reserved `/__/firebase/init.json` endpoint. For other hosts, copy the Web app settings into `firebase-config.js`. The browser or operating system cannot determine a Firebase project on its own.
+5. Install the Firebase CLI, select your project with `firebase use --add`, then deploy the included security rules with `firebase deploy --only firestore:rules,storage:rules`.
+6. Serve the site over HTTPS (or localhost) so Firebase Authentication and browser security APIs work. To host with Firebase Hosting, run `firebase deploy --only hosting` after selecting the project.
+
+The Firestore rules allow signed-in members to read shared messages and posts, but only allow new messages and posts to be created for the signed-in account. Storage rules require the uploader's own account folder, an image/video content type, and a maximum size of 150,000,000 bytes (150 MB). These limits are also checked in the browser; the Storage rules enforce them even if a client bypasses the page.
+
+Existing accounts created by the earlier browser-local demo are not transferred to Firebase. Members need to create new accounts after Firebase is configured. Firebase Storage usage and uploads can incur charges; configure project budgets and monitor usage.
+
 ## Run locally
 
-Open the project with a local web server, such as VS Code Live Server, or deploy it to a static hosting provider. No backend or package installation is required. Use HTTPS or localhost so the browser can provide the required Web Crypto API.
+Open the project with a local web server, such as VS Code Live Server, or deploy it to a static hosting provider. The Firebase JavaScript SDK is loaded from Google's CDN; no local package installation is required. Use HTTPS or localhost.
 
 ## Security and availability
 
-The Content Security Policy limits scripts, styles, forms, frames, and connections to this site; the church hero image is allowed from Unsplash. The referrer policy limits URL details shared with other origins. These page-level policies complement, but do not replace, HTTP response headers.
+The Content Security Policy limits scripts, styles, forms, frames, and connections to this site and the Firebase services needed for sign-in, chat, and media. The church hero image is allowed from Unsplash. The referrer policy limits URL details shared with other origins. These page-level policies complement, but do not replace, HTTP response headers.
 
 For production hosting, enforce HTTPS and configure response headers where the host supports them, including `Strict-Transport-Security`, `X-Content-Type-Options: nosniff`, a `frame-ancestors` Content Security Policy, and an appropriate `Permissions-Policy`. GitHub Pages does not read a repository `_headers` file, so those headers must be configured through a hosting provider or fronting CDN that supports them.
 
-DoS protection cannot be implemented in static page code. Use the hosting provider or a CDN with DDoS mitigation, traffic filtering, and rate limiting. IndexedDB accounts and browser session state are client-side demo functionality, not trusted authentication; do not use them to authorize private data or server-side actions.
+DoS protection and chat moderation cannot be implemented in static page code. Use the hosting provider or a CDN with DDoS mitigation, traffic filtering, and rate limiting, and monitor Firebase quotas and billing.

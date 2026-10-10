@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'; frame-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' https://images.unsplash.com; font-src 'self'; connect-src 'self'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'; frame-src 'none'; script-src 'self' https://www.gstatic.com; style-src 'self'; img-src 'self' https://images.unsplash.com https://firebasestorage.googleapis.com https://www.google.com blob:; media-src 'self' https://firebasestorage.googleapis.com blob:; font-src 'self'; connect-src 'self' https://*.googleapis.com https://*.firebaseio.com wss://*.firebaseio.com">
 <meta name="referrer" content="strict-origin-when-cross-origin">
 <title>Jesus True Gospel Church</title>
 <link rel="stylesheet" href="styles.css">
@@ -37,6 +37,7 @@
 <section id="activity">
 
     <h2>Church Activity</h2>
+    <p id="firebase-setup-status" class="setup-status" role="status" aria-live="polite" hidden></p>
 
     <div class="church-container">
 <!-- Div separation ---->
@@ -118,12 +119,33 @@
 
 </section>
 
+<section id="community" aria-labelledby="community-title">
+    <h2 id="community-title">Share Church Activity</h2>
+    <div class="community-grid">
+        <section class="community-panel" aria-labelledby="posts-title">
+            <h3 id="posts-title">New Post</h3>
+            <p>Upload an image or video (maximum file size: 150 MB).</p>
+            <div id="upload-status" class="community-status" role="status" aria-live="polite" hidden></div>
+            <form id="upload-form" class="community-form">
+                <label for="activity-file">Image or video</label>
+                <input id="activity-file" name="file" type="file" accept="image/*,video/*" required>
+                <label for="activity-caption">Caption (optional)</label>
+                <textarea id="activity-caption" name="caption" maxlength="500" rows="2"></textarea>
+                <progress id="upload-progress" class="upload-progress" max="100" value="0" hidden></progress>
+                <button type="submit">Upload post</button>
+            </form>
+        </section>
+    </div>
+    <div id="feed-status" class="community-status" role="status" aria-live="polite" hidden></div>
+    <div id="activity-feed" class="activity-feed" aria-label="Church activity posts" aria-live="polite"></div>
+</section>
+
 <footer>
 <p>
 © 2026 Jesus True Gospel Church | "For God so loved the world..." – John 3:16
 </p>
 </footer>
-<script src="script.js"></script>
+<script type="module" src="script.js"></script>
 
 </body>
 </html>
