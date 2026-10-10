@@ -4,7 +4,15 @@ import {
     signOut,
     updateProfile
 } from 'https://www.gstatic.com/firebasejs/11.10.0/firebase-auth.js';
-import { auth, firebaseConfigured } from './firebase.js';
+import {
+    deleteObject,
+    getDownloadURL,
+    ref,
+    uploadBytes
+} from 'https://www.gstatic.com/firebasejs/11.10.0/firebase-storage.js';
+import { auth, storage } from './firebase.js';
+
+const maximumProfilePhotoBytes = 5 * 1024 * 1024;
 
 const authDialog = document.getElementById('auth-dialog');
 const authDialogMessage = document.getElementById('auth-dialog-message');
@@ -28,7 +36,14 @@ function showPopup(text, type = 'error') {
         authDialogIcon.textContent = type === 'success' ? '\u2713' : '!';
     }
     if (typeof authDialog.showModal === 'function') {
-        if (!authDialog.open) authDialog.showModal();
+        if (!authDialog.open) {
+            try {
+                authDialog.showModal();
+            } catch (error) {
+                console.error('Could not show the authentication dialog:', error);
+                authDialog.setAttribute('open', '');
+            }
+        }
     } else {
         authDialog.setAttribute('open', '');
     }
@@ -103,23 +118,71 @@ export function initializeAuthForms() {
             const email = String(formData.get('email')).trim().toLowerCase();
             const name = String(formData.get('name')).trim();
             const password = String(formData.get('password'));
+            const photo = formData.get('photo');
             if (!name) {
                 showPopup('Please enter your name.');
                 document.getElementById('signup-name')?.focus();
                 return;
             }
+            if (photo instanceof File && photo.size > maximumProfilePhotoBytes) {
+                showPopup('Profile pictures must be 5 MB or smaller.');
+                document.getElementById('signup-photo')?.focus();
+                return;
+            }
+            if (photo instanceof File && photo.size > 0 && !photo.type.startsWith('image/')) {
+                showPopup('Choose an image for your profile picture.');
+                document.getElementById('signup-photo')?.focus();
+                return;
+            }
 
+            const submitButton = signupForm.querySelector('button[type="submit"]');
+            if (submitButton) submitButton.disabled = true;
+            let photoWarning = '';
+            let profilePhotoReference = null;
             try {
                 const credential = await createUserWithEmailAndPassword(auth, email, password);
-                await updateProfile(credential.user, { displayName: name });
-                await signOut(auth);
+                let photoURL = '';
+                if (photo instanceof File && photo.size > 0) {
+                    if (!storage) {
+                        photoWarning = ' Your account was created, but profile photo storage is not configured.';
+                    } else {
+                        profilePhotoReference = ref(storage, `profiles/${credential.user.uid}/avatar`);
+                        try {
+                            await uploadBytes(profilePhotoReference, photo, { contentType: photo.type });
+                            photoURL = await getDownloadURL(profilePhotoReference);
+                        } catch (error) {
+                            console.error('Could not upload the new member profile photo:', error);
+                            photoWarning = ' Your account was created, but the profile photo could not be uploaded.';
+                            if (profilePhotoReference) {
+                                try {
+                                    await deleteObject(profilePhotoReference);
+                                } catch (cleanupError) {
+                                    console.error('Could not clean up the failed profile photo upload:', cleanupError);
+                                }
+                            }
+                        }
+                    }
+                }
+                try {
+                    await updateProfile(credential.user, { displayName: name, photoURL });
+                } catch (error) {
+                    console.error('Could not save the new member profile:', error);
+                    photoWarning = ' Your account was created, but its profile details could not be saved.';
+                }
+                try {
+                    await signOut(auth);
+                } catch (error) {
+                    console.error('Could not sign out after account creation:', error);
+                }
                 signupForm.reset();
                 const loginEmail = document.getElementById('login-email');
                 if (loginEmail) loginEmail.value = email;
                 showPanel('login');
-                showPopup('Your account is ready. You can now log in.', 'success');
+                showPopup(`Your account is ready. You can now log in.${photoWarning}`, 'success');
             } catch (error) {
                 showPopup(getAuthErrorMessage(error, 'create the account'));
+            } finally {
+                if (submitButton) submitButton.disabled = false;
             }
         });
     }
@@ -138,16 +201,17 @@ export function initializeAuthForms() {
             const email = String(formData.get('email')).trim().toLowerCase();
             const password = String(formData.get('password'));
 
+            const submitButton = loginForm.querySelector('button[type="submit"]');
+            if (submitButton) submitButton.disabled = true;
             try {
                 await signInWithEmailAndPassword(auth, email, password);
                 window.location.href = 'index.html';
             } catch (error) {
                 showPopup(getAuthErrorMessage(error, 'log in'));
+            } finally {
+                if (submitButton) submitButton.disabled = false;
             }
         });
     }
 
-    if (!firebaseConfigured) {
-        document.querySelectorAll('.auth-form button').forEach(button => { button.disabled = true; });
-    }
 }

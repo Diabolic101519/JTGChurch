@@ -2,6 +2,7 @@ import { initializeApp } from 'https://www.gstatic.com/firebasejs/11.10.0/fireba
 import { getAuth } from 'https://www.gstatic.com/firebasejs/11.10.0/firebase-auth.js';
 import { getFirestore } from 'https://www.gstatic.com/firebasejs/11.10.0/firebase-firestore.js';
 import { getStorage } from 'https://www.gstatic.com/firebasejs/11.10.0/firebase-storage.js';
+import { getDatabase } from 'https://www.gstatic.com/firebasejs/11.10.0/firebase-database.js';
 import { firebaseConfig } from './firebase-config.js';
 
 const requiredConfigKeys = [
@@ -55,3 +56,4 @@ const app = loadedFirebaseConfig ? initializeApp(loadedFirebaseConfig) : null;
 export const auth = app ? getAuth(app) : null;
 export const db = app ? getFirestore(app) : null;
 export const storage = app ? getStorage(app) : null;
+export const realtimeDb = app && loadedFirebaseConfig.databaseURL ? getDatabase(app) : null;

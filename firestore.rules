@@ -9,15 +9,41 @@ service cloud.firestore {
     match /messages/{messageId} {
       allow read: if signedIn();
       allow create: if signedIn()
-        && request.resource.data.keys().hasAll(['uid', 'displayName', 'body', 'createdAt'])
-        && request.resource.data.keys().hasOnly(['uid', 'displayName', 'body', 'createdAt'])
+        && request.resource.data.keys().hasAll(['uid', 'displayName', 'photoURL', 'body', 'createdAt'])
+        && request.resource.data.keys().hasOnly(['uid', 'displayName', 'photoURL', 'body', 'createdAt', 'attachment'])
         && request.resource.data.uid == request.auth.uid
         && request.resource.data.displayName is string
         && request.resource.data.displayName.size() > 0
         && request.resource.data.displayName.size() <= 100
+        && request.resource.data.photoURL is string
+        && request.resource.data.photoURL.size() <= 2048
+        && (request.resource.data.photoURL == ''
+          || request.resource.data.photoURL.matches('https://firebasestorage[.]googleapis[.]com/.*'))
         && request.resource.data.body is string
-        && request.resource.data.body.size() > 0
         && request.resource.data.body.size() <= 2000
+        && (request.resource.data.body.size() > 0 || 'attachment' in request.resource.data)
+        && (!('attachment' in request.resource.data) || (
+          request.resource.data.attachment is map
+          && request.resource.data.attachment.keys().hasAll([
+            'name', 'contentType', 'size', 'storagePath', 'downloadUrl'
+          ])
+          && request.resource.data.attachment.keys().hasOnly([
+            'name', 'contentType', 'size', 'storagePath', 'downloadUrl'
+          ])
+          && request.resource.data.attachment.name is string
+          && request.resource.data.attachment.name.size() > 0
+          && request.resource.data.attachment.name.size() <= 255
+          && request.resource.data.attachment.contentType is string
+          && request.resource.data.attachment.contentType.size() <= 255
+          && request.resource.data.attachment.size is int
+          && request.resource.data.attachment.size > 0
+          && (!request.resource.data.attachment.contentType.matches('video/.*')
+            || request.resource.data.attachment.size <= 50000000)
+          && request.resource.data.attachment.storagePath is string
+          && request.resource.data.attachment.storagePath.matches('messages/' + request.auth.uid + '/[^/]+')
+          && request.resource.data.attachment.downloadUrl is string
+          && request.resource.data.attachment.downloadUrl.matches('https://firebasestorage[.]googleapis[.]com/.*')
+        ))
         && request.resource.data.createdAt == request.time;
       allow update, delete: if false;
     }

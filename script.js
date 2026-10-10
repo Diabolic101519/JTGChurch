@@ -13,7 +13,9 @@ const homeAuthCard = document.querySelector('.home-auth-card');
 const heroLayout = document.getElementById('hero-layout');
 const activityLinks = document.querySelectorAll('nav a[href="activities.html"]');
 const setupStatus = document.getElementById('firebase-setup-status');
-let communityInitialized = false;
+let communityUid = null;
+let communityCleanup = null;
+let communityInitializationId = 0;
 
 const activeLink = document.querySelector(`nav a[href="${currentPage}"]`);
 if (activeLink) activeLink.classList.add('active');
@@ -65,10 +67,16 @@ if (accountMenu && accountName) {
 if (logoutButton && auth) {
     logoutButton.addEventListener('click', async () => {
         try {
+            if (communityCleanup) {
+                communityCleanup();
+                communityCleanup = null;
+                communityUid = null;
+            }
             await signOut(auth);
             window.location.href = 'index.html';
         } catch (error) {
             console.error('Firebase sign out failed:', error);
+            if (auth.currentUser) updateSignedInInterface(auth.currentUser);
             window.alert('Could not log out. Please try again.');
         }
     });
@@ -79,11 +87,18 @@ function showFirebaseSetupMessage() {
         setupStatus.hidden = false;
         setupStatus.textContent = `${firebaseSetupMessage} Deploy the Firestore and Storage rules before using accounts, chat, or uploads.`;
     }
-    document.querySelectorAll('.auth-form input, .auth-form button, .community-form input, .community-form textarea, .community-form button')
+    document.querySelectorAll('.community-form input, .community-form textarea, .community-form button')
         .forEach(control => { control.disabled = true; });
 }
 
 function updateSignedInInterface(user) {
+    if (!user) {
+        communityInitializationId += 1;
+        if (communityCleanup) communityCleanup();
+        communityCleanup = null;
+        communityUid = null;
+    }
+
     activityLinks.forEach(link => {
         link.setAttribute('aria-disabled', String(!user));
         if (user) link.removeAttribute('tabindex');
@@ -109,15 +124,22 @@ function updateSignedInInterface(user) {
 
     if (setupStatus && user) setupStatus.hidden = true;
 
-    if (user && !communityInitialized) {
-        communityInitialized = true;
+    if (user && communityUid !== user.uid) {
+        if (communityCleanup) communityCleanup();
+        communityCleanup = null;
+        communityUid = user.uid;
+        const initializationId = ++communityInitializationId;
         import('./community.js')
-            .then(({ initializeCommunity }) => initializeCommunity(user))
+            .then(({ initializeCommunity }) => {
+                if (initializationId !== communityInitializationId || auth.currentUser?.uid !== user.uid) return;
+                communityCleanup = initializeCommunity(user);
+            })
             .catch(error => {
-                console.error('Could not initialize church chat and activity posts:', error);
+                if (initializationId !== communityInitializationId) return;
+                console.error('Could not initialize Messenger and activity posts:', error);
                 if (setupStatus) {
                     setupStatus.hidden = false;
-                    setupStatus.textContent = 'Could not load church chat or activity posts. Refresh the page and try again.';
+                    setupStatus.textContent = 'Could not load Messenger or activity posts. Refresh the page and try again.';
                 }
             });
     }

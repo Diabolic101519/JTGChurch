@@ -12,11 +12,46 @@ import {
     deleteObject,
     getDownloadURL,
     ref,
+    uploadBytes,
     uploadBytesResumable
 } from 'https://www.gstatic.com/firebasejs/11.10.0/firebase-storage.js';
-import { db, storage } from './firebase.js';
+import {
+    onDisconnect,
+    onValue,
+    ref as databaseRef,
+    serverTimestamp as databaseServerTimestamp,
+    set
+} from 'https://www.gstatic.com/firebasejs/11.10.0/firebase-database.js';
+import { db, realtimeDb, storage } from './firebase.js';
 
 const maximumUploadBytes = 150 * 1000 * 1000;
+const maximumMessengerVideoBytes = 50 * 1000 * 1000;
+const maximumProfilePhotoBytes = 5 * 1024 * 1024;
+const defaultProfilePhoto = 'images/default-avatar.svg';
+
+function isTrustedProfilePhoto(photoURL) {
+    if (typeof photoURL !== 'string' || !photoURL) return false;
+    try {
+        const url = new URL(photoURL);
+        return url.protocol === 'https:' && url.hostname === 'firebasestorage.googleapis.com';
+    } catch {
+        return false;
+    }
+}
+
+function createAvatar(photoURL, name, className) {
+    const avatar = document.createElement('img');
+    avatar.className = className;
+    avatar.src = isTrustedProfilePhoto(photoURL) ? photoURL : defaultProfilePhoto;
+    avatar.alt = `${name} profile photo`;
+    avatar.loading = 'lazy';
+    avatar.addEventListener('error', () => {
+        if (avatar.getAttribute('src') !== defaultProfilePhoto) {
+            avatar.src = defaultProfilePhoto;
+        }
+    }, { once: true });
+    return avatar;
+}
 
 function setStatus(element, message, state = 'error') {
     if (!element) return;
@@ -48,6 +83,11 @@ function formatDate(timestamp) {
     return timestamp.toDate().toLocaleString();
 }
 
+function formatFileSize(size) {
+    if (size < 1000 * 1000) return `${Math.max(1, Math.round(size / 1000))} KB`;
+    return `${(size / (1000 * 1000)).toFixed(1)} MB`;
+}
+
 function createMessengerWidget() {
     const widget = document.createElement('div');
     widget.className = 'messenger-widget';
@@ -55,7 +95,7 @@ function createMessengerWidget() {
     const toggle = document.createElement('button');
     toggle.className = 'messenger-toggle';
     toggle.type = 'button';
-    toggle.setAttribute('aria-label', 'Open church chat');
+    toggle.setAttribute('aria-label', 'Open Messenger');
     toggle.setAttribute('aria-expanded', 'false');
     toggle.setAttribute('aria-controls', 'messenger-panel');
     toggle.setAttribute('aria-haspopup', 'dialog');
@@ -81,15 +121,17 @@ function createMessengerWidget() {
     const titleGroup = document.createElement('div');
     const title = document.createElement('h2');
     title.id = 'messenger-title';
-    title.textContent = 'Church Chat';
-    const subtitle = document.createElement('p');
-    subtitle.textContent = 'Church-wide conversation';
-    titleGroup.append(title, subtitle);
+    title.textContent = 'Messenger';
+    titleGroup.append(title);
+    const onlineUsers = document.createElement('div');
+    onlineUsers.className = 'messenger-online-users';
+    onlineUsers.setAttribute('aria-label', 'Online members');
+    onlineUsers.setAttribute('aria-live', 'polite');
 
     const close = document.createElement('button');
     close.className = 'messenger-close';
     close.type = 'button';
-    close.setAttribute('aria-label', 'Close church chat');
+    close.setAttribute('aria-label', 'Close Messenger');
     close.textContent = '\u00d7';
     header.append(titleGroup, close);
 
@@ -102,9 +144,81 @@ function createMessengerWidget() {
     const messageList = document.createElement('ol');
     messageList.id = 'messenger-messages';
     messageList.className = 'messenger-messages';
-    messageList.setAttribute('aria-label', 'Church chat messages');
+    messageList.setAttribute('aria-label', 'Messenger messages');
     messageList.setAttribute('aria-live', 'polite');
     messageList.setAttribute('aria-relevant', 'additions');
+
+    const attachmentPicker = document.createElement('div');
+    attachmentPicker.className = 'messenger-attachment-picker';
+    const selectedAttachment = document.createElement('div');
+    selectedAttachment.className = 'messenger-selected-attachment';
+    selectedAttachment.hidden = true;
+
+    let selectedFile = null;
+    let previewUrl = null;
+    const showSelectedFile = file => {
+        if (previewUrl) URL.revokeObjectURL(previewUrl);
+        previewUrl = null;
+        selectedAttachment.replaceChildren();
+        selectedFile = file;
+        if (!file) {
+            selectedAttachment.hidden = true;
+            return;
+        }
+
+        if (file.type.startsWith('image/')) {
+            const preview = document.createElement('img');
+            preview.className = 'messenger-attachment-preview';
+            preview.src = URL.createObjectURL(file);
+            preview.alt = '';
+            preview.loading = 'eager';
+            previewUrl = preview.src;
+            selectedAttachment.append(preview);
+        }
+        const fileName = document.createElement('span');
+        fileName.textContent = `${file.name} (${formatFileSize(file.size)})`;
+        selectedAttachment.append(fileName);
+        const remove = document.createElement('button');
+        remove.type = 'button';
+        remove.setAttribute('aria-label', 'Remove attachment');
+        remove.textContent = '\u00d7';
+        remove.addEventListener('click', () => showSelectedFile(null));
+        selectedAttachment.append(remove);
+        selectedAttachment.hidden = false;
+    };
+
+    const attachmentButtons = [
+        { label: 'File', icon: '\u{1f4ce}', accept: '' },
+        { label: 'Image', icon: '\u{1f5bc}', accept: 'image/*' },
+        { label: 'Video', icon: '\u{1f3ac}', accept: 'video/*' }
+    ];
+    attachmentButtons.forEach(({ label, icon, accept }) => {
+        const picker = document.createElement('input');
+        picker.type = 'file';
+        picker.hidden = true;
+        picker.accept = accept;
+        picker.setAttribute('aria-label', `Choose ${label.toLowerCase()} attachment`);
+        picker.addEventListener('change', () => {
+            const file = picker.files && picker.files[0];
+            if (!file) return;
+            if (file.type.startsWith('video/') && file.size > maximumMessengerVideoBytes) {
+                setStatus(status, 'Messenger videos must be 50 MB or smaller.');
+                picker.value = '';
+                return;
+            }
+            setStatus(status, '');
+            showSelectedFile(file);
+            picker.value = '';
+        });
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.className = 'messenger-attachment-button';
+        button.setAttribute('aria-label', `Attach ${label.toLowerCase()}`);
+        button.title = `Attach ${label.toLowerCase()}`;
+        button.textContent = icon;
+        button.addEventListener('click', () => picker.click());
+        attachmentPicker.append(button, picker);
+    });
 
     const form = document.createElement('form');
     form.className = 'messenger-form';
@@ -115,14 +229,13 @@ function createMessengerWidget() {
     messageInput.rows = 1;
     messageInput.placeholder = 'Aa';
     messageInput.setAttribute('aria-label', 'Write a message');
-    messageInput.required = true;
 
     const sendButton = document.createElement('button');
     sendButton.type = 'submit';
     sendButton.setAttribute('aria-label', 'Send message');
     sendButton.textContent = 'Send';
     form.append(messageInput, sendButton);
-    panel.append(header, status, messageList, form);
+    panel.append(header, onlineUsers, status, messageList, selectedAttachment, attachmentPicker, form);
     widget.append(toggle, panel);
     document.body.append(widget);
 
@@ -130,7 +243,7 @@ function createMessengerWidget() {
     const setOpen = open => {
         panel.hidden = !open;
         toggle.setAttribute('aria-expanded', String(open));
-        toggle.setAttribute('aria-label', open ? 'Close church chat' : 'Open church chat');
+        toggle.setAttribute('aria-label', open ? 'Close Messenger' : 'Open Messenger');
         widget.classList.toggle('is-open', open);
         if (open) {
             unreadCount = 0;
@@ -157,11 +270,18 @@ function createMessengerWidget() {
         widget,
         toggle,
         panel,
+        onlineUsers,
         status,
         messageList,
         messageInput,
         form,
         unreadBadge,
+        get selectedFile() {
+            return selectedFile;
+        },
+        clearSelectedFile() {
+            showSelectedFile(null);
+        },
         addUnreadMessage() {
             unreadCount += 1;
             unreadBadge.textContent = unreadCount > 9 ? '9+' : String(unreadCount);
@@ -176,6 +296,9 @@ function createChatMessage(documentSnapshot, currentUser) {
     item.className = 'chat-message';
     item.dataset.own = String(message.uid === currentUser.uid);
 
+    const avatar = createAvatar(message.photoURL, message.displayName, 'chat-message-avatar');
+    const bubble = document.createElement('div');
+    bubble.className = 'chat-message-bubble';
     const header = document.createElement('div');
     header.className = 'chat-message-header';
     const author = document.createElement('span');
@@ -187,8 +310,135 @@ function createChatMessage(documentSnapshot, currentUser) {
     const body = document.createElement('div');
     body.className = 'chat-message-body';
     body.textContent = message.body;
-    item.append(header, body);
+    bubble.append(header);
+    if (message.body) bubble.append(body);
+
+    if (message.attachment) {
+        const attachmentUrl = new URL(message.attachment.downloadUrl);
+        if (attachmentUrl.protocol !== 'https:' || attachmentUrl.hostname !== 'firebasestorage.googleapis.com') {
+            throw new Error(`Message ${documentSnapshot.id} has an invalid attachment URL.`);
+        }
+        if (message.attachment.contentType.startsWith('image/')) {
+            const image = document.createElement('img');
+            image.className = 'chat-message-attachment';
+            image.src = attachmentUrl.href;
+            image.alt = message.attachment.name;
+            image.loading = 'lazy';
+            bubble.append(image);
+        } else if (message.attachment.contentType.startsWith('video/')) {
+            const video = document.createElement('video');
+            video.className = 'chat-message-attachment';
+            video.src = attachmentUrl.href;
+            video.controls = true;
+            video.preload = 'metadata';
+            video.playsInline = true;
+            video.setAttribute('aria-label', message.attachment.name);
+            bubble.append(video);
+        } else {
+            const fileLink = document.createElement('a');
+            fileLink.className = 'chat-message-file';
+            fileLink.href = attachmentUrl.href;
+            fileLink.target = '_blank';
+            fileLink.rel = 'noopener noreferrer';
+            fileLink.download = message.attachment.name;
+            fileLink.textContent = `\u{1f4ce} ${message.attachment.name} (${formatFileSize(message.attachment.size)})`;
+            bubble.append(fileLink);
+        }
+    }
+
+    item.append(avatar, bubble);
     return item;
+}
+
+function initializePresence(currentUser, messenger) {
+    if (!realtimeDb) {
+        const status = document.createElement('span');
+        status.className = 'messenger-presence-unavailable';
+        status.textContent = 'Online status unavailable';
+        messenger.onlineUsers.append(status);
+        return () => {};
+    }
+
+    const presenceRoot = databaseRef(realtimeDb, 'presence');
+    const ownPresence = databaseRef(realtimeDb, `presence/${currentUser.uid}`);
+    const connectedRef = databaseRef(realtimeDb, '.info/connected');
+    const displayName = (currentUser.displayName || currentUser.email || 'Church member').slice(0, 100);
+    const photoURL = isTrustedProfilePhoto(currentUser.photoURL) ? currentUser.photoURL : '';
+    const subscriptions = [];
+
+    subscriptions.push(onValue(presenceRoot, snapshot => {
+        const onlineMembers = [];
+        snapshot.forEach(member => {
+            const profile = member.val();
+            if (profile && profile.state === 'online') {
+                onlineMembers.push({ uid: member.key, ...profile });
+            }
+        });
+        onlineMembers.sort((first, second) => first.displayName.localeCompare(second.displayName));
+        messenger.onlineUsers.replaceChildren();
+        const onlineLabel = document.createElement('span');
+        onlineLabel.className = 'messenger-online-count';
+        onlineLabel.textContent = `${onlineMembers.length} online`;
+        messenger.onlineUsers.append(onlineLabel);
+
+        onlineMembers.slice(0, 8).forEach(member => {
+            const avatarWrap = document.createElement('span');
+            avatarWrap.className = 'messenger-online-avatar';
+            avatarWrap.title = `${member.displayName} is online`;
+            avatarWrap.append(createAvatar(member.photoURL, member.displayName, 'online-member-photo'));
+            const indicator = document.createElement('span');
+            indicator.className = 'online-indicator';
+            indicator.setAttribute('aria-hidden', 'true');
+            avatarWrap.append(indicator);
+            messenger.onlineUsers.append(avatarWrap);
+        });
+        if (onlineMembers.length > 8) {
+            const more = document.createElement('span');
+            more.className = 'messenger-online-more';
+            more.textContent = `+${onlineMembers.length - 8}`;
+            messenger.onlineUsers.append(more);
+        }
+        messenger.onlineUsers.setAttribute('aria-label', `${onlineMembers.length} church members online`);
+    }, error => {
+        console.error('Could not load online church members:', error);
+        setStatus(messenger.status, 'Online member status is unavailable. Check your Firebase Realtime Database rules.');
+    }));
+
+    subscriptions.push(onValue(connectedRef, async snapshot => {
+        if (snapshot.val() !== true) return;
+        try {
+            await onDisconnect(ownPresence).set({
+                state: 'offline',
+                displayName,
+                photoURL,
+                lastChanged: databaseServerTimestamp()
+            });
+            await set(ownPresence, {
+                state: 'online',
+                displayName,
+                photoURL,
+                lastChanged: databaseServerTimestamp()
+            });
+        } catch (error) {
+            console.error('Could not publish online status:', error);
+            setStatus(messenger.status, 'Could not update your online status. Check Firebase Realtime Database rules.');
+        }
+    }, error => {
+        console.error('Could not connect to Firebase Realtime Database:', error);
+        setStatus(messenger.status, 'Online member status is unavailable. Configure Firebase Realtime Database.');
+    }));
+
+    return () => {
+        subscriptions.forEach(unsubscribe => unsubscribe());
+        set(ownPresence, {
+            state: 'offline',
+            displayName,
+            photoURL,
+            lastChanged: databaseServerTimestamp()
+        }).then(() => onDisconnect(ownPresence).cancel()).catch(error => {
+            console.error('Could not clear online status:', error);
+        });
+    };
 }
 
 function initializeChat(currentUser) {
@@ -210,12 +460,16 @@ function initializeChat(currentUser) {
     );
     let firstSnapshot = true;
     const seenMessageIds = new Set();
-    onSnapshot(messagesQuery, snapshot => {
+    const unsubscribeMessages = onSnapshot(messagesQuery, snapshot => {
         const shouldScroll = firstSnapshot || messageList.scrollHeight - messageList.scrollTop - messageList.clientHeight < 80;
         const visibleMessageIds = new Set();
         messageList.replaceChildren();
         snapshot.forEach(documentSnapshot => {
-            messageList.append(createChatMessage(documentSnapshot, currentUser));
+            try {
+                messageList.append(createChatMessage(documentSnapshot, currentUser));
+            } catch (error) {
+                console.error(`Could not display message ${documentSnapshot.id}:`, error);
+            }
             const isNewMessage = !seenMessageIds.has(documentSnapshot.id);
             seenMessageIds.add(documentSnapshot.id);
             visibleMessageIds.add(documentSnapshot.id);
@@ -240,8 +494,9 @@ function initializeChat(currentUser) {
     messageForm.addEventListener('submit', async event => {
         event.preventDefault();
         const body = messageInput.value.trim();
-        if (!body) {
-            setStatus(status, 'Write a message before sending.');
+        const file = messenger.selectedFile;
+        if (!body && !file) {
+            setStatus(status, 'Write a message or attach a file before sending.');
             messageInput.focus();
             return;
         }
@@ -249,18 +504,59 @@ function initializeChat(currentUser) {
             setStatus(status, 'Messages must be 2,000 characters or fewer.');
             return;
         }
+        if (file && file.size === 0) {
+            setStatus(status, 'Choose a file that is not empty.');
+            return;
+        }
+        if (file && file.type.startsWith('video/') && file.size > maximumMessengerVideoBytes) {
+            setStatus(status, 'Messenger videos must be 50 MB or smaller.');
+            return;
+        }
 
         const sendButton = messageForm.querySelector('button[type="submit"]');
         if (sendButton) sendButton.disabled = true;
         setStatus(status, 'Sending message…', 'progress');
+        let uploadedReference = null;
         try {
-            await addDoc(collection(db, 'messages'), {
+            let attachment;
+            if (file) {
+                const storagePath = `messages/${currentUser.uid}/${crypto.randomUUID()}`;
+                uploadedReference = ref(storage, storagePath);
+                await uploadBytes(uploadedReference, file, {
+                    contentType: file.type || 'application/octet-stream'
+                });
+                attachment = {
+                    name: file.name.slice(0, 255),
+                    contentType: file.type || 'application/octet-stream',
+                    size: file.size,
+                    storagePath,
+                    downloadUrl: await getDownloadURL(uploadedReference)
+                };
+            }
+
+            const message = {
                 uid: currentUser.uid,
                 displayName: (currentUser.displayName || currentUser.email || 'Church member').slice(0, 100),
+                photoURL: isTrustedProfilePhoto(currentUser.photoURL) ? currentUser.photoURL : '',
                 body,
                 createdAt: serverTimestamp()
-            });
+            };
+            if (attachment) message.attachment = attachment;
+            try {
+                await addDoc(collection(db, 'messages'), message);
+            } catch (error) {
+                if (uploadedReference) {
+                    try {
+                        await deleteObject(uploadedReference);
+                    } catch (cleanupError) {
+                        console.error('Could not remove an attachment after its message failed to send:', cleanupError);
+                        throw new Error('Your message could not be sent, and its uploaded attachment could not be removed.');
+                    }
+                }
+                throw error;
+            }
             messageForm.reset();
+            messenger.clearSelectedFile();
             setStatus(status, 'Message sent.', 'success');
         } catch (error) {
             setStatus(status, `Could not send the message. ${getCommunityError(error)}`);
@@ -268,6 +564,17 @@ function initializeChat(currentUser) {
             if (sendButton) sendButton.disabled = false;
         }
     });
+
+    const stopPresence = initializePresence(currentUser, messenger);
+    let stopped = false;
+    return () => {
+        if (stopped) return;
+        stopped = true;
+        unsubscribeMessages();
+        stopPresence();
+        messenger.clearSelectedFile();
+        messenger.widget.remove();
+    };
 }
 
 function createActivityPost(documentSnapshot) {
@@ -316,10 +623,10 @@ function createActivityPost(documentSnapshot) {
 function initializeActivityFeed() {
     const feed = document.getElementById('activity-feed');
     const status = document.getElementById('feed-status');
-    if (!feed || !db) return;
+    if (!feed || !db) return () => {};
 
     const postsQuery = query(collection(db, 'posts'), orderBy('createdAt', 'desc'), limit(30));
-    onSnapshot(postsQuery, snapshot => {
+    return onSnapshot(postsQuery, snapshot => {
         feed.replaceChildren();
         snapshot.forEach(documentSnapshot => {
             try {
@@ -348,9 +655,9 @@ function initializePostUpload(currentUser) {
     const progress = document.getElementById('upload-progress');
     const status = document.getElementById('upload-status');
     const feedStatus = document.getElementById('feed-status');
-    if (!uploadForm || !fileInput || !captionInput || !progress || !storage || !db) return;
+    if (!uploadForm || !fileInput || !captionInput || !progress || !storage || !db) return () => {};
 
-    fileInput.addEventListener('change', () => {
+    const onFileChange = () => {
         const file = fileInput.files && fileInput.files[0];
         if (!file) {
             setStatus(status, '');
@@ -363,9 +670,10 @@ function initializePostUpload(currentUser) {
         } else {
             setStatus(status, '');
         }
-    });
+    };
+    fileInput.addEventListener('change', onFileChange);
 
-    uploadForm.addEventListener('submit', async event => {
+    const onSubmit = async event => {
         event.preventDefault();
         const file = fileInput.files && fileInput.files[0];
         if (!file) {
@@ -433,18 +741,28 @@ function initializePostUpload(currentUser) {
             if (uploadButton) uploadButton.disabled = false;
             if (!uploadedReference) progress.hidden = true;
         }
-    });
+    };
+    uploadForm.addEventListener('submit', onSubmit);
 
     if (feedStatus) setStatus(feedStatus, '');
+    return () => {
+        fileInput.removeEventListener('change', onFileChange);
+        uploadForm.removeEventListener('submit', onSubmit);
+    };
 }
 
 export function initializeCommunity(currentUser) {
-    initializeChat(currentUser);
-    if (document.getElementById('activity-feed')) {
-        if (!db || !storage) {
-            throw new Error('Firebase Firestore and Storage are not configured.');
-        }
-        initializeActivityFeed();
-        initializePostUpload(currentUser);
+    const hasActivityFeed = Boolean(document.getElementById('activity-feed'));
+    if (hasActivityFeed && (!db || !storage)) {
+        throw new Error('Firebase Firestore and Storage are not configured.');
     }
+
+    const cleanups = [];
+    const chatCleanup = initializeChat(currentUser);
+    if (chatCleanup) cleanups.push(chatCleanup);
+    if (hasActivityFeed) {
+        cleanups.push(initializeActivityFeed());
+        cleanups.push(initializePostUpload(currentUser));
+    }
+    return () => cleanups.forEach(cleanup => cleanup());
 }
