@@ -977,13 +977,9 @@ function createActivityPost(documentSnapshot, currentUser, db, storage, status) 
     repliesHeading.textContent = 'Replies';
     const replyList = document.createElement('ul');
     replyList.className = 'activity-reply-list';
-    (Array.isArray(post.replies) ? post.replies : []).forEach(reply => replyList.append(createReply(reply)));
-    if (!replyList.childElementCount) {
-        const emptyReplies = document.createElement('li');
-        emptyReplies.className = 'activity-reply-empty';
-        emptyReplies.textContent = 'No replies yet.';
-        replyList.append(emptyReplies);
-    }
+    const postReplies = Array.isArray(post.replies) ? post.replies : [];
+    postReplies.forEach(reply => replyList.append(createReply(reply)));
+    if (postReplies.length) replies.append(repliesHeading, replyList);
 
     const replyForm = document.createElement('form');
     replyForm.className = 'activity-reply-form community-form';
@@ -1028,7 +1024,7 @@ function createActivityPost(documentSnapshot, currentUser, db, storage, status) 
             replyButton.disabled = false;
         }
     });
-    replies.append(repliesHeading, replyList, replyForm);
+    replies.append(replyForm);
     content.append(replies);
     card.append(content);
     return card;

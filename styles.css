@@ -602,6 +602,43 @@ section {
     justify-content: flex-start;
     flex-wrap: wrap;
     margin-top: 12px;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity .15s ease;
+}
+
+.activity-post:hover .activity-post-actions,
+.activity-post:focus-within .activity-post-actions {
+    opacity: 1;
+    pointer-events: auto;
+}
+
+.activity-reply-form {
+    margin-top: 12px;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity .15s ease;
+}
+
+.activity-post:hover .activity-reply-form,
+.activity-post:focus-within .activity-reply-form {
+    opacity: 1;
+    pointer-events: auto;
+}
+
+@media (hover: none) {
+    .activity-post-actions,
+    .activity-reply-form {
+        opacity: 1;
+        pointer-events: auto;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .activity-post-actions,
+    .activity-reply-form {
+        transition: none;
+    }
 }
 
 .activity-post-actions button {
@@ -674,14 +711,9 @@ section {
     margin-bottom: 0;
 }
 
-.activity-reply-empty,
 .activity-file-selection {
     color: #687983;
     font-size: 14px;
-}
-
-.activity-reply-form {
-    margin-top: 12px;
 }
 
 .messenger-widget {
