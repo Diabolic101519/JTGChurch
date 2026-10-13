@@ -24,36 +24,37 @@ Website for Jesus True Gospel Church.
 
 ## Firebase setup
 
-Firebase cannot create a project or Web app from this static website. Create or select the `web-app-f8475` project and register a Web app in the Firebase Console. Once deployed to that project, Firebase Hosting supplies the Web app configuration automatically at its reserved `/__/firebase/init.json` endpoint. The app checks that endpoint before using the optional local fallback in `firebase-config.js`.
+This website is hosted as a static site on GitHub Pages. GitHub Pages is free for public repositories on GitHub Free; Firebase is used only for the website's sign-in, database, chat, and file-storage backend. Firebase Hosting is not required.
 
-1. In the [Firebase Console](https://console.firebase.google.com/), create or select the `web-app-f8475` Firebase project, then add a **Web app** to it. Registering the Web app is required for Hosting's config endpoint to return its settings. Open **Hosting** and complete **Get started** to create the project's default Hosting site.
+1. In the [Firebase Console](https://console.firebase.google.com/), create or select the `web-app-f8475` Firebase project and register a **Web app** in it.
 2. In **Authentication → Sign-in method**, enable **Email/Password**.
 3. Create a Cloud Firestore database, a Cloud Storage bucket, and a Realtime Database for online-member presence.
-4. To deploy Firebase security rules from this computer, install the Firebase CLI if needed and authenticate:
+4. Copy the Web app configuration from **Project settings → Your apps** into `firebase-config.js`. The required values are `apiKey`, `authDomain`, `projectId`, `storageBucket`, `messagingSenderId`, and `appId`. Also copy `databaseURL` from the Realtime Database settings to enable online-member presence. These browser-facing Web app settings are not Admin credentials; never put a service-account key in this file.
+5. In **Authentication → Settings → Authorized domains**, add `diabolic101519.github.io` so sign-in can work on the published site.
+6. To deploy Firebase security rules from this computer, install the Firebase CLI if needed and authenticate:
 
    ```sh
    npm install -g firebase-tools
    firebase login
    ```
 
-   This repository is already associated with `web-app-f8475`. Deploy the included security rules:
+   This repository is associated with `web-app-f8475`. Deploy the included security rules:
 
    ```sh
    firebase deploy --only firestore:rules,database,storage:rules
    ```
 
-5. Configure automatic Hosting deployments in GitHub. Create a service account with the **Firebase Hosting Admin** role, generate a JSON key, then save the full JSON key in this repository's **Settings → Secrets and variables → Actions** as `FIREBASE_SERVICE_ACCOUNT`. Never commit the key. The workflow deploys pushes to `main` to `web-app-f8475`.
-6. Open `https://web-app-f8475.web.app`. Firebase Hosting supplies the configuration for the registered Web app automatically; no Firebase config values need to be copied into source files. For local development or a non-Firebase host, copy the Web app settings into `firebase-config.js` instead. The Hosting config endpoint is unavailable on a generic local server such as VS Code Live Server. Serve the site over HTTPS (or localhost) so Firebase Authentication and browser security APIs work.
+7. In the GitHub repository, open **Settings → Pages** and select **GitHub Actions** as the build and deployment source. The included workflow deploys each push to `main` to [https://diabolic101519.github.io/JTGChurch/](https://diabolic101519.github.io/JTGChurch/). No Firebase Hosting service-account secret is needed.
 
-If Hosting's `/__/firebase/init.json` endpoint is unavailable or does not return a valid Web app configuration, verify that a Web app is registered in `web-app-f8475` and that the page is being served from `https://web-app-f8475.web.app`. The app then falls back to `firebase-config.js`. Until a valid configuration is available, the UI disables sign-in, chat, and uploads; deploying database rules alone will not fix missing project settings.
+Until a valid Web app config is added to `firebase-config.js`, the UI disables sign-in, chat, and uploads. Firebase Hosting's automatic `/__/firebase/init.json` configuration is not available on GitHub Pages.
 
-The Firestore rules allow signed-in members to read shared messages and posts, restrict deletion to the message sender, and store each member's read receipts in their own private collection. Storage rules require the uploader's own account folder, restrict Activity posts to images/videos up to 150,000,000 bytes (150 MB), and enforce a 50,000,000-byte (50 MB) limit for Messenger videos; other Messenger file types have no app-imposed size cap. Profile pictures are limited to 5 MB. Client checks provide feedback, while Firebase rules enforce these limits and permissions if a client bypasses the page. Presence uses one connection entry per browser session so multiple open tabs do not incorrectly mark a member offline. It also needs the Realtime Database URL in the Firebase Hosting app config or `firebase-config.js`; if it is missing, chat remains available and shows that online status is unavailable.
+The Firestore rules allow signed-in members to read shared messages and posts, restrict deletion to the message sender, and store each member's read receipts in their own private collection. Storage rules require the uploader's own account folder, restrict Activity posts to images/videos up to 150,000,000 bytes (150 MB), and enforce a 50,000,000-byte (50 MB) limit for Messenger videos; other Messenger file types have no app-imposed size cap. Profile pictures are limited to 5 MB. Client checks provide feedback, while Firebase rules enforce these limits and permissions if a client bypasses the page. Presence uses one connection entry per browser session so multiple open tabs do not incorrectly mark a member offline. It also needs the Realtime Database URL in `firebase-config.js`; if it is missing, chat remains available and shows that online status is unavailable.
 
 Existing accounts created by the earlier browser-local demo are not transferred to Firebase. Members need to create new accounts after Firebase is configured. Firebase Storage usage and uploads can incur charges; configure project budgets and monitor usage.
 
 ## Run locally
 
-Open the project with a local web server, such as VS Code Live Server, or deploy it to Firebase Hosting. The Firebase JavaScript SDK is loaded from Google's CDN; no local package installation is required. Use HTTPS or localhost.
+Open the project with a local web server, such as VS Code Live Server, or deploy it to GitHub Pages. The Firebase JavaScript SDK is loaded from Google's CDN; no local package installation is required. Use HTTPS or localhost.
 
 ## Security and availability
 
