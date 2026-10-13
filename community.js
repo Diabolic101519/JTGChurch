@@ -14,6 +14,7 @@ import {
     ref,
     serverTimestamp,
     setDoc,
+    updateDoc,
     uploadBytes,
     uploadBytesResumable,
     getLocalFileStore,
@@ -686,54 +687,354 @@ function initializeChat(currentUser, db, storage) {
     };
 }
 
-function createActivityPost(documentSnapshot) {
-    const post = documentSnapshot.data();
-    const card = document.createElement('article');
-    card.className = 'activity-post';
+function asDate(value) {
+    if (value instanceof Date) return value;
+    if (value && typeof value.toDate === 'function') return value.toDate();
+    return null;
+}
 
-    const mediaUrl = new URL(post.downloadUrl);
-    if (mediaUrl.protocol !== 'local-file:') {
-        throw new Error(`Post ${documentSnapshot.id} has an invalid media URL.`);
+function makeTimestamp(value, className = '') {
+    const time = document.createElement('time');
+    const date = asDate(value);
+    if (className) time.className = className;
+    if (date) time.dateTime = date.toISOString();
+    time.textContent = formatDate(value);
+    return time;
+}
+
+function getPostMedia(post) {
+    if (Array.isArray(post.media)) return post.media;
+    if (post.downloadUrl && post.storagePath) {
+        return [{
+            storagePath: post.storagePath,
+            downloadUrl: post.downloadUrl,
+            contentType: post.contentType || 'image/*',
+            name: post.fileName || 'Activity media'
+        }];
     }
+    return [];
+}
 
-    const media = document.createElement(post.contentType.startsWith('video/') ? 'video' : 'img');
-    if (mediaUrl.protocol === 'local-file:') {
-        getObjectURLFromURL(post.downloadUrl).then(url => { media.src = url; }).catch(error => {
+function createPostMedia(mediaItems, post) {
+    const gallery = document.createElement('div');
+    gallery.className = 'activity-post-media';
+    mediaItems.forEach(item => {
+        const mediaUrl = new URL(item.downloadUrl);
+        if (mediaUrl.protocol !== 'local-file:') {
+            throw new Error('An activity post contains an invalid media URL.');
+        }
+        const media = document.createElement(item.contentType.startsWith('video/') ? 'video' : 'img');
+        getObjectURLFromURL(item.downloadUrl).then(url => { media.src = url; }).catch(error => {
             console.error('Could not load a browser-local activity upload:', error);
         });
-    }
-    if (media instanceof HTMLVideoElement) {
-        media.controls = true;
-        media.preload = 'metadata';
-        media.playsInline = true;
-    } else {
-        media.alt = post.caption || `Photo shared by ${post.displayName}`;
-        media.loading = 'lazy';
-    }
+        if (media instanceof HTMLVideoElement) {
+            media.controls = true;
+            media.preload = 'metadata';
+            media.playsInline = true;
+        } else {
+            media.alt = post.caption || item.name || `Photo shared by ${post.displayName}`;
+            media.loading = 'lazy';
+        }
+
+        const itemContainer = document.createElement('div');
+        itemContainer.className = 'activity-post-media-item';
+        const name = document.createElement('p');
+        name.className = 'activity-post-media-name';
+        name.textContent = item.name || 'Shared media';
+        itemContainer.append(media, name);
+        gallery.append(itemContainer);
+    });
+    return gallery;
+}
+
+function createReply(reply) {
+    const item = document.createElement('li');
+    item.className = 'activity-reply';
+    const author = document.createElement('strong');
+    author.textContent = reply.displayName || 'Church member';
+    const timestamp = makeTimestamp(reply.createdAt);
+    const text = document.createElement('p');
+    text.textContent = reply.text || '';
+    item.append(author, timestamp, text);
+    return item;
+}
+
+function createEditForm(post, mediaItems, currentUser, db, storage, status) {
+    const form = document.createElement('form');
+    form.className = 'activity-edit-form community-form';
+    const captionLabel = document.createElement('label');
+    captionLabel.textContent = 'Edit caption';
+    const captionInput = document.createElement('textarea');
+    captionInput.maxLength = 500;
+    captionInput.rows = 3;
+    captionInput.value = post.caption || '';
+    captionLabel.append(captionInput);
+
+    const mediaLabel = document.createElement('label');
+    mediaLabel.textContent = 'Add more images or videos';
+    const fileInput = document.createElement('input');
+    fileInput.type = 'file';
+    fileInput.accept = 'image/*,video/*';
+    fileInput.multiple = true;
+    mediaLabel.append(fileInput);
+
+    const mediaOptions = document.createElement('fieldset');
+    mediaOptions.className = 'activity-edit-media';
+    const legend = document.createElement('legend');
+    legend.textContent = 'Remove media from this post';
+    mediaOptions.append(legend);
+    mediaItems.forEach(item => {
+        const label = document.createElement('label');
+        const checkbox = document.createElement('input');
+        checkbox.type = 'checkbox';
+        checkbox.value = item.storagePath;
+        label.append(checkbox, document.createTextNode(` Remove ${item.name || 'shared media'}`));
+        mediaOptions.append(label);
+    });
+
+    const actions = document.createElement('div');
+    actions.className = 'activity-post-actions';
+    const saveButton = document.createElement('button');
+    saveButton.type = 'submit';
+    saveButton.textContent = 'Save changes';
+    const cancelButton = document.createElement('button');
+    cancelButton.type = 'button';
+    cancelButton.className = 'secondary-button';
+    cancelButton.textContent = 'Cancel';
+    cancelButton.addEventListener('click', () => form.remove());
+    actions.append(saveButton, cancelButton);
+    form.append(captionLabel, mediaLabel, mediaOptions, actions);
+
+    form.addEventListener('submit', async event => {
+        event.preventDefault();
+        const selectedFiles = Array.from(fileInput.files || []);
+        const invalidFile = selectedFiles.find(file => (
+            (!file.type.startsWith('image/') && !file.type.startsWith('video/'))
+            || file.size > maximumUploadBytes
+        ));
+        if (invalidFile) {
+            setStatus(status, invalidFile.size > maximumUploadBytes
+                ? `${invalidFile.name} is larger than the 150 MB per-file limit.`
+                : `${invalidFile.name} is not an image or video.`);
+            return;
+        }
+
+        saveButton.disabled = true;
+        const uploadedItems = [];
+        let postSaved = false;
+        try {
+            for (let index = 0; index < selectedFiles.length; index += 1) {
+                setStatus(status, `Adding media ${index + 1} of ${selectedFiles.length}...`, 'progress');
+                uploadedItems.push(await uploadActivityMedia(selectedFiles[index], currentUser, storage));
+            }
+
+            await updateDoc(doc(db, 'posts', post.id), existing => {
+                if (existing.uid !== currentUser.uid) {
+                    throw new Error('Only the member who created this post can edit it.');
+                }
+                const latestMedia = Array.isArray(existing.media)
+                    ? existing.media
+                    : mediaItems;
+                const removedPaths = new Set(
+                    Array.from(mediaOptions.querySelectorAll('input:checked')).map(input => input.value)
+                );
+                const editedAt = serverTimestamp();
+                return {
+                    caption: captionInput.value.trim().slice(0, 500),
+                    media: [
+                        ...latestMedia.filter(item => !removedPaths.has(item.storagePath)),
+                        ...uploadedItems.map(item => item.media)
+                    ],
+                    editedByUid: currentUser.uid,
+                    editedByName: (currentUser.displayName || currentUser.email || 'Church member').slice(0, 100),
+                    editedAt,
+                    updatedAt: editedAt
+                };
+            });
+            postSaved = true;
+            const removedPaths = new Set(
+                Array.from(mediaOptions.querySelectorAll('input:checked')).map(input => input.value)
+            );
+            let cleanupFailed = false;
+            for (const path of removedPaths) {
+                try {
+                    await deleteObject(ref(storage, path));
+                } catch (error) {
+                    cleanupFailed = true;
+                    console.error('Could not remove activity media selected for deletion:', error);
+                }
+            }
+            if (cleanupFailed) {
+                setStatus(status, 'Your post was updated, but some removed media could not be deleted from browser storage.');
+            } else {
+                setStatus(status, 'Your post was updated.', 'success');
+            }
+        } catch (error) {
+            if (!postSaved) {
+                let cleanupFailed = false;
+                for (const item of uploadedItems) {
+                    try {
+                        await deleteObject(item.reference);
+                    } catch (cleanupError) {
+                        cleanupFailed = true;
+                        console.error('Could not remove media after an activity edit failed:', cleanupError);
+                    }
+                }
+                setStatus(status, cleanupFailed
+                    ? `Could not update the post, and some temporary uploads could not be removed. ${getCommunityError(error)}`
+                    : `Could not update the post. ${getCommunityError(error)}`);
+            } else {
+                setStatus(status, `The post was saved, but a follow-up operation failed. ${getCommunityError(error)}`);
+            }
+        } finally {
+            saveButton.disabled = false;
+        }
+    });
+    return form;
+}
+
+function createActivityPost(documentSnapshot, currentUser, db, storage, status) {
+    const post = documentSnapshot.data();
+    post.id = documentSnapshot.id;
+    const mediaItems = getPostMedia(post);
+    const card = document.createElement('article');
+    card.className = 'activity-post';
+    if (mediaItems.length) card.append(createPostMedia(mediaItems, post));
 
     const content = document.createElement('div');
     content.className = 'activity-post-content';
     const author = document.createElement('h3');
-    author.textContent = post.displayName;
-    content.append(author);
+    author.textContent = post.displayName || 'Church member';
+    const createdAt = makeTimestamp(post.createdAt, 'activity-post-timestamp');
+    const postHeader = document.createElement('div');
+    postHeader.className = 'activity-post-header';
+    postHeader.append(author, createdAt);
+    content.append(postHeader);
 
     if (post.caption) {
         const caption = document.createElement('p');
+        caption.className = 'activity-post-caption';
         caption.textContent = post.caption;
         content.append(caption);
     }
+    if (post.editedAt) {
+        const edited = document.createElement('p');
+        edited.className = 'activity-post-edited';
+        edited.append(
+            document.createTextNode(`Edited by ${post.editedByName || 'Church member'} · `),
+            makeTimestamp(post.editedAt)
+        );
+        content.append(edited);
+    }
 
-    const createdAt = document.createElement('time');
-    createdAt.dateTime = post.createdAt && typeof post.createdAt.toDate === 'function'
-        ? post.createdAt.toDate().toISOString()
-        : '';
-    createdAt.textContent = formatDate(post.createdAt);
-    content.append(createdAt);
-    card.append(media, content);
+    if (post.uid === currentUser.uid) {
+        const actions = document.createElement('div');
+        actions.className = 'activity-post-actions';
+        const editButton = document.createElement('button');
+        editButton.type = 'button';
+        editButton.className = 'secondary-button';
+        editButton.textContent = 'Edit post';
+        const deleteButton = document.createElement('button');
+        deleteButton.type = 'button';
+        deleteButton.className = 'danger-button';
+        deleteButton.textContent = 'Delete post';
+        const editForm = createEditForm(post, mediaItems, currentUser, db, storage, status);
+        editForm.hidden = true;
+        editButton.addEventListener('click', () => {
+            editForm.hidden = !editForm.hidden;
+            if (!editForm.hidden) editForm.querySelector('textarea').focus();
+        });
+        deleteButton.addEventListener('click', async () => {
+            if (!window.confirm('Delete this activity post and all its uploaded media?')) return;
+            deleteButton.disabled = true;
+            try {
+                await deleteDoc(doc(db, 'posts', post.id));
+                let cleanupFailed = false;
+                for (const item of mediaItems) {
+                    try {
+                        await deleteObject(ref(storage, item.storagePath));
+                    } catch (error) {
+                        cleanupFailed = true;
+                        console.error('Could not remove media from a deleted activity post:', error);
+                    }
+                }
+                setStatus(status, cleanupFailed
+                    ? 'Your post was deleted, but some uploaded media could not be removed from browser storage.'
+                    : 'Your post was deleted.', cleanupFailed ? 'error' : 'success');
+            } catch (error) {
+                setStatus(status, `Could not fully delete the post. ${getCommunityError(error)}`);
+            } finally {
+                deleteButton.disabled = false;
+            }
+        });
+        actions.append(editButton, deleteButton);
+        content.append(actions, editForm);
+    }
+
+    const replies = document.createElement('section');
+    replies.className = 'activity-replies';
+    const repliesHeading = document.createElement('h4');
+    repliesHeading.textContent = 'Replies';
+    const replyList = document.createElement('ul');
+    replyList.className = 'activity-reply-list';
+    (Array.isArray(post.replies) ? post.replies : []).forEach(reply => replyList.append(createReply(reply)));
+    if (!replyList.childElementCount) {
+        const emptyReplies = document.createElement('li');
+        emptyReplies.className = 'activity-reply-empty';
+        emptyReplies.textContent = 'No replies yet.';
+        replyList.append(emptyReplies);
+    }
+
+    const replyForm = document.createElement('form');
+    replyForm.className = 'activity-reply-form community-form';
+    const replyLabel = document.createElement('label');
+    replyLabel.textContent = 'Add a reply';
+    const replyInput = document.createElement('textarea');
+    replyInput.maxLength = 500;
+    replyInput.rows = 2;
+    replyInput.required = true;
+    replyInput.placeholder = 'Write a reply...';
+    replyLabel.append(replyInput);
+    const replyButton = document.createElement('button');
+    replyButton.type = 'submit';
+    replyButton.textContent = 'Reply';
+    replyForm.append(replyLabel, replyButton);
+    replyForm.addEventListener('submit', async event => {
+        event.preventDefault();
+        const text = replyInput.value.trim();
+        if (!text) {
+            replyInput.focus();
+            return;
+        }
+        replyButton.disabled = true;
+        try {
+            await updateDoc(doc(db, 'posts', post.id), existing => ({
+                replies: [
+                    ...(Array.isArray(existing.replies) ? existing.replies : []),
+                    {
+                        id: crypto.randomUUID(),
+                        uid: currentUser.uid,
+                        displayName: (currentUser.displayName || currentUser.email || 'Church member').slice(0, 100),
+                        text: text.slice(0, 500),
+                        createdAt: serverTimestamp()
+                    }
+                ]
+            }));
+            replyInput.value = '';
+            setStatus(status, 'Your reply was added.', 'success');
+        } catch (error) {
+            setStatus(status, `Could not add your reply. ${getCommunityError(error)}`);
+        } finally {
+            replyButton.disabled = false;
+        }
+    });
+    replies.append(repliesHeading, replyList, replyForm);
+    content.append(replies);
+    card.append(content);
     return card;
 }
 
-function initializeActivityFeed(db) {
+function initializeActivityFeed(currentUser, db, storage) {
     const feed = document.getElementById('activity-feed');
     const status = document.getElementById('feed-status');
     if (!feed || !db) return () => {};
@@ -743,7 +1044,7 @@ function initializeActivityFeed(db) {
         feed.replaceChildren();
         snapshot.forEach(documentSnapshot => {
             try {
-                feed.append(createActivityPost(documentSnapshot));
+                feed.append(createActivityPost(documentSnapshot, currentUser, db, storage, status));
             } catch (error) {
                 console.error('Could not display activity post:', error);
                 setStatus(status, 'One of the activity posts could not be displayed.');
@@ -761,6 +1062,24 @@ function initializeActivityFeed(db) {
     });
 }
 
+async function uploadActivityMedia(file, currentUser, storage) {
+    const storagePath = `posts/${currentUser.uid}/${crypto.randomUUID()}`;
+    const reference = ref(storage, storagePath);
+    const task = uploadBytesResumable(reference, file, { contentType: file.type });
+    await new Promise((resolve, reject) => {
+        task.on('state_changed', () => {}, reject, resolve);
+    });
+    return {
+        reference,
+        media: {
+            storagePath,
+            downloadUrl: await getDownloadURL(reference),
+            contentType: file.type,
+            name: file.name
+        }
+    };
+}
+
 function initializePostUpload(currentUser, db, storage) {
     const uploadForm = document.getElementById('upload-form');
     const fileInput = document.getElementById('activity-file');
@@ -769,17 +1088,24 @@ function initializePostUpload(currentUser, db, storage) {
     const status = document.getElementById('upload-status');
     const feedStatus = document.getElementById('feed-status');
     if (!uploadForm || !fileInput || !captionInput || !progress || !storage || !db) return () => {};
+    const fileSelection = document.getElementById('activity-file-selection');
 
     const onFileChange = () => {
-        const file = fileInput.files && fileInput.files[0];
-        if (!file) {
+        const files = Array.from(fileInput.files || []);
+        if (!files.length) {
+            if (fileSelection) fileSelection.textContent = '';
             setStatus(status, '');
             return;
         }
-        if (!file.type.startsWith('image/') && !file.type.startsWith('video/')) {
-            setStatus(status, 'Choose an image or video file.');
-        } else if (file.size > maximumUploadBytes) {
-            setStatus(status, 'The selected file is larger than the 150 MB upload limit.');
+        if (fileSelection) fileSelection.textContent = files.map(file => `${file.name} (${formatFileSize(file.size)})`).join(', ');
+        const invalidFile = files.find(file => (
+            (!file.type.startsWith('image/') && !file.type.startsWith('video/'))
+            || file.size > maximumUploadBytes
+        ));
+        if (invalidFile) {
+            setStatus(status, invalidFile.size > maximumUploadBytes
+                ? `${invalidFile.name} is larger than the 150 MB per-file limit.`
+                : `${invalidFile.name} is not an image or video.`);
         } else {
             setStatus(status, '');
         }
@@ -788,71 +1114,70 @@ function initializePostUpload(currentUser, db, storage) {
 
     const onSubmit = async event => {
         event.preventDefault();
-        const file = fileInput.files && fileInput.files[0];
-        if (!file) {
-            setStatus(status, 'Choose an image or video file to upload.');
+        const files = Array.from(fileInput.files || []);
+        if (!files.length) {
+            setStatus(status, 'Choose at least one image or video file to upload.');
             fileInput.focus();
             return;
         }
-        if (!file.type.startsWith('image/') && !file.type.startsWith('video/')) {
-            setStatus(status, 'Choose an image or video file.');
-            return;
-        }
-        if (file.size > maximumUploadBytes) {
-            setStatus(status, 'The selected file is larger than the 150 MB upload limit.');
+        const invalidFile = files.find(file => (
+            (!file.type.startsWith('image/') && !file.type.startsWith('video/'))
+            || file.size > maximumUploadBytes
+        ));
+        if (invalidFile) {
+            setStatus(status, invalidFile.size > maximumUploadBytes
+                ? `${invalidFile.name} is larger than the 150 MB per-file limit.`
+                : `${invalidFile.name} is not an image or video.`);
             return;
         }
 
         const uploadButton = uploadForm.querySelector('button[type="submit"]');
         const caption = captionInput.value.trim().slice(0, 500);
         const displayName = (currentUser.displayName || currentUser.email || 'Church member').slice(0, 100);
-        const storagePath = `posts/${currentUser.uid}/${crypto.randomUUID()}`;
-        const storageReference = ref(storage, storagePath);
         if (uploadButton) uploadButton.disabled = true;
         progress.hidden = false;
         progress.value = 0;
-        setStatus(status, 'Uploading: 0%. Keep this page open until the upload finishes.', 'progress');
+        setStatus(status, `Uploading ${files.length} file${files.length === 1 ? '' : 's'}... Keep this page open until complete.`, 'progress');
 
-        let uploadedReference = null;
+        const uploadedItems = [];
         try {
-            const task = uploadBytesResumable(storageReference, file, { contentType: file.type });
-            uploadedReference = await new Promise((resolve, reject) => {
-                task.on('state_changed', snapshot => {
-                    const percentage = Math.round((snapshot.bytesTransferred / snapshot.totalBytes) * 100);
-                    progress.value = percentage;
-                    setStatus(status, `Uploading: ${percentage}%. Keep this page open until the upload finishes.`, 'progress');
-                }, reject, () => resolve(task.snapshot.ref));
+            for (let index = 0; index < files.length; index += 1) {
+                setStatus(status, `Uploading file ${index + 1} of ${files.length}... Keep this page open until complete.`, 'progress');
+                uploadedItems.push(await uploadActivityMedia(files[index], currentUser, storage));
+                progress.value = Math.round(((index + 1) / files.length) * 100);
+            }
+            const firstMedia = uploadedItems[0].media;
+            await addDoc(collection(db, 'posts'), {
+                uid: currentUser.uid,
+                displayName,
+                caption,
+                media: uploadedItems.map(item => item.media),
+                storagePath: firstMedia.storagePath,
+                downloadUrl: firstMedia.downloadUrl,
+                contentType: firstMedia.contentType,
+                createdAt: serverTimestamp()
             });
 
-            const downloadUrl = await getDownloadURL(uploadedReference);
-            try {
-                await addDoc(collection(db, 'posts'), {
-                    uid: currentUser.uid,
-                    displayName,
-                    caption,
-                    storagePath,
-                    downloadUrl,
-                    contentType: file.type,
-                    createdAt: serverTimestamp()
-                });
-            } catch (error) {
-                try {
-                    await deleteObject(uploadedReference);
-                } catch (cleanupError) {
-                    console.error('Could not remove uploaded media after its post failed to save:', cleanupError);
-                    throw new Error('The post could not be saved, and its uploaded file could not be cleaned up. Contact the site administrator.');
-                }
-                throw error;
-            }
-
             uploadForm.reset();
+            if (fileSelection) fileSelection.textContent = '';
             progress.value = 100;
             setStatus(status, 'Your post was shared with the church.', 'success');
         } catch (error) {
-            setStatus(status, `Could not upload the post. ${getCommunityError(error)}`);
+            let cleanupFailed = false;
+            for (const item of uploadedItems) {
+                try {
+                    await deleteObject(item.reference);
+                } catch (cleanupError) {
+                    cleanupFailed = true;
+                    console.error('Could not remove media after the activity upload failed:', cleanupError);
+                }
+            }
+            setStatus(status, cleanupFailed
+                ? `Could not upload the post, and some uploaded files could not be removed. ${getCommunityError(error)}`
+                : `Could not upload the post. ${getCommunityError(error)}`);
         } finally {
             if (uploadButton) uploadButton.disabled = false;
-            if (!uploadedReference) progress.hidden = true;
+            if (!uploadedItems.length) progress.hidden = true;
         }
     };
     uploadForm.addEventListener('submit', onSubmit);
@@ -878,7 +1203,7 @@ export async function initializeCommunity(currentUser) {
     const chatCleanup = initializeChat(currentUser, db, storage);
     if (chatCleanup) cleanups.push(chatCleanup);
     if (hasActivityFeed) {
-        cleanups.push(initializeActivityFeed(db));
+        cleanups.push(initializeActivityFeed(currentUser, db, storage));
         cleanups.push(initializePostUpload(currentUser, db, storage));
     }
     return () => cleanups.forEach(cleanup => cleanup());

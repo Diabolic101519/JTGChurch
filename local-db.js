@@ -490,6 +490,40 @@ export async function setDoc(documentReference, data) {
     broadcastDatabaseChange();
 }
 
+export async function updateDoc(documentReference, update) {
+    const database = await readyDatabase();
+    const storeName = getCollectionStore(documentReference.path.slice(0, -1));
+    const id = documentReference.path[documentReference.path.length - 1];
+    return new Promise((resolve, reject) => {
+        const transaction = database.transaction([storeName], 'readwrite');
+        const store = transaction.objectStore(storeName);
+        const request = store.get(id);
+        let updatedRecord;
+        let failure;
+        request.onsuccess = () => {
+            if (!request.result) {
+                failure = new Error('The requested local record no longer exists.');
+                transaction.abort();
+                return;
+            }
+            try {
+                const changes = typeof update === 'function' ? update({ ...request.result }) : update;
+                updatedRecord = { ...request.result, ...changes, id };
+                store.put(updatedRecord);
+            } catch (error) {
+                failure = error;
+                transaction.abort();
+            }
+        };
+        transaction.oncomplete = () => {
+            broadcastDatabaseChange();
+            resolve(updatedRecord);
+        };
+        transaction.onerror = () => reject(failure || transaction.error || new Error('The local database update failed.'));
+        transaction.onabort = () => reject(failure || transaction.error || new Error('The local database update was cancelled.'));
+    });
+}
+
 export function onSnapshot(queryReference, next, errorCallback) {
     if (!queryReference?.collection || typeof next !== 'function') {
         throw new TypeError('A local query and listener are required.');

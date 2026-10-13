@@ -16,7 +16,7 @@ Website for Jesus True Gospel Church.
 - Incoming messages remain unread until a member marks them read. Members can delete their own messages for everyone.
 - Messenger video attachments are limited to 50 MB; other Messenger attachments have no additional app-imposed size limit. Activity feed image/video uploads remain limited to 150 MB.
 - New members can optionally upload a profile photo (up to 5 MB), which is used in chat.
-- Activity uploads have a 150 MB per-file limit, show upload progress, and are restricted to images and videos.
+- Signed-in members can create activity posts with multiple images and videos (150 MB per file), edit captions or media, delete their own posts, and add timestamped replies. Posts show their author and creation time, and edits show the editor and edit time.
 - Hover over or keyboard-focus the signed-in name to reveal Log Out; the account control works independently of the page navigation menu.
 - Logging out ends the local session and returns to the home page, where login and sign-up are available and Activity is disabled again.
 - The navigation also provides access to About Us, Church's, and Contact Us.

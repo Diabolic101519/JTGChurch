@@ -533,8 +533,59 @@ section {
     object-fit: contain;
 }
 
+.activity-post-media {
+    display: grid;
+    gap: 8px;
+}
+
+.activity-post-media-item {
+    min-width: 0;
+}
+
+.activity-post-media-name,
+.activity-post-edited {
+    margin: 6px 12px 10px;
+    color: #687983;
+    font-size: 13px;
+    overflow-wrap: anywhere;
+}
+
 .activity-post-content {
     padding: 16px;
+}
+
+.activity-post-header,
+.activity-post-actions {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+}
+
+.activity-post-header {
+    flex-wrap: wrap;
+}
+
+.activity-post-header h3 {
+    margin: 0;
+}
+
+.activity-post-timestamp,
+.activity-reply time,
+.activity-post-edited time {
+    color: #687983;
+    font-size: 13px;
+}
+
+.activity-post-timestamp {
+    display: block;
+    margin: 0;
+}
+
+.activity-reply time,
+.activity-post-edited time {
+    display: inline;
+    margin: 0 0 0 8px;
 }
 
 .activity-post-content h3 {
@@ -547,11 +598,90 @@ section {
     white-space: pre-wrap;
 }
 
-.activity-post-content time {
-    display: block;
-    margin-top: 8px;
+.activity-post-actions {
+    justify-content: flex-start;
+    flex-wrap: wrap;
+    margin-top: 12px;
+}
+
+.activity-post-actions button {
+    padding: 8px 12px;
+    border: 0;
+    border-radius: 6px;
+    background: #1b4d6b;
+    color: #fff;
+    cursor: pointer;
+}
+
+.activity-post-actions .danger-button {
+    background: #a52b2b;
+}
+
+.activity-post-actions .secondary-button {
+    background: #687983;
+}
+
+.activity-edit-form {
+    margin-top: 12px;
+    padding: 12px;
+    border: 1px solid #d7e0e4;
+    border-radius: 8px;
+}
+
+.activity-edit-media {
+    margin-top: 12px;
+    padding: 10px;
+    border: 1px solid #d7e0e4;
+    border-radius: 6px;
+}
+
+.activity-edit-media label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.activity-replies {
+    margin-top: 16px;
+    padding-top: 12px;
+    border-top: 1px solid #e0e6e9;
+}
+
+.activity-replies h4 {
+    margin: 0 0 8px;
+    color: #1b4d6b;
+}
+
+.activity-reply-list {
+    display: grid;
+    gap: 10px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.activity-reply {
+    padding: 10px;
+    border-radius: 6px;
+    background: #f3f6f7;
+}
+
+.activity-reply time {
+    margin-left: 8px;
+}
+
+.activity-reply p {
+    margin-bottom: 0;
+}
+
+.activity-reply-empty,
+.activity-file-selection {
     color: #687983;
-    font-size: 13px;
+    font-size: 14px;
+}
+
+.activity-reply-form {
+    margin-top: 12px;
 }
 
 .messenger-widget {
