@@ -2,28 +2,24 @@ import {
     addDoc,
     collection,
     deleteDoc,
+    deleteObject,
     doc,
+    getDownloadURL,
+    getObjectURLFromURL,
     limit,
     limitToLast,
     onSnapshot,
     orderBy,
     query,
+    ref,
     serverTimestamp,
     setDoc,
-    where
-} from 'https://www.gstatic.com/firebasejs/11.10.0/firebase-firestore.js';
-import {
-    deleteObject,
-    getDownloadURL,
-    ref,
     uploadBytes,
-    uploadBytesResumable
-} from 'https://www.gstatic.com/firebasejs/11.10.0/firebase-storage.js';
-import {
-    getFirebaseStorage,
-    getFirestoreDb,
-    getRealtimeDatabase
-} from './firebase.js';
+    uploadBytesResumable,
+    getLocalFileStore,
+    getLocalDatabase,
+    where
+} from './local-db.js';
 
 const maximumUploadBytes = 150 * 1000 * 1000;
 const maximumMessengerVideoBytes = 50 * 1000 * 1000;
@@ -33,7 +29,7 @@ function isTrustedProfilePhoto(photoURL) {
     if (typeof photoURL !== 'string' || !photoURL) return false;
     try {
         const url = new URL(photoURL);
-        return url.protocol === 'https:' && url.hostname === 'firebasestorage.googleapis.com';
+        return url.protocol === 'local-file:';
     } catch {
         return false;
     }
@@ -42,9 +38,16 @@ function isTrustedProfilePhoto(photoURL) {
 function createAvatar(photoURL, name, className) {
     const avatar = document.createElement('img');
     avatar.className = className;
-    avatar.src = isTrustedProfilePhoto(photoURL) ? photoURL : defaultProfilePhoto;
+    const localPhotoUrl = isTrustedProfilePhoto(photoURL) && new URL(photoURL).protocol === 'local-file:';
+    avatar.src = isTrustedProfilePhoto(photoURL) && !localPhotoUrl ? photoURL : defaultProfilePhoto;
     avatar.alt = `${name} profile photo`;
     avatar.loading = 'lazy';
+    if (localPhotoUrl) {
+        getObjectURLFromURL(photoURL).then(url => { avatar.src = url; }).catch(error => {
+            console.error('Could not load a browser-local profile photo:', error);
+            avatar.src = defaultProfilePhoto;
+        });
+    }
     avatar.addEventListener('error', () => {
         if (avatar.getAttribute('src') !== defaultProfilePhoto) {
             avatar.src = defaultProfilePhoto;
@@ -63,24 +66,19 @@ function setStatus(element, message, state = 'error') {
 function getCommunityError(error) {
     switch (error.code) {
         case 'permission-denied':
-        case 'storage/unauthorized':
-            return 'Your account is not allowed to do that. Check that Firebase rules are deployed.';
-        case 'storage/canceled':
-            return 'The upload was canceled.';
-        case 'storage/quota-exceeded':
-            return 'Firebase Storage has reached its quota.';
-        case 'unavailable':
-        case 'storage/retry-limit-exceeded':
-            return 'The service is temporarily unavailable. Check your connection and try again.';
+            return 'Your browser did not allow access to its local database.';
         default:
-            console.error('Church community request failed:', error);
-            return 'The request failed. Check your connection and Firebase setup, then try again.';
+            console.error('Browser-local church community request failed:', error);
+            return error.name === 'QuotaExceededError'
+                ? 'This browser is out of storage space. Remove some browser data or choose a smaller file and try again.'
+                : 'The local database request failed. Check browser storage permissions and try again.';
     }
 }
 
 function formatDate(timestamp) {
-    if (!timestamp || typeof timestamp.toDate !== 'function') return 'Just now';
-    return timestamp.toDate().toLocaleString();
+    if (timestamp instanceof Date) return timestamp.toLocaleString();
+    if (timestamp && typeof timestamp.toDate === 'function') return timestamp.toDate().toLocaleString();
+    return 'Just now';
 }
 
 function formatFileSize(size) {
@@ -286,7 +284,7 @@ function createMessengerWidget() {
     };
 }
 
-function createChatMessage(documentSnapshot, currentUser, readMessageIds, markAsRead, deleteMessage) {
+function createChatMessage(documentSnapshot, currentUser, readMessageIds, markAsRead, deleteMessage, status) {
     const message = documentSnapshot.data();
     const item = document.createElement('li');
     item.className = 'chat-message';
@@ -324,20 +322,28 @@ function createChatMessage(documentSnapshot, currentUser, readMessageIds, markAs
 
     if (message.attachment) {
         const attachmentUrl = new URL(message.attachment.downloadUrl);
-        if (attachmentUrl.protocol !== 'https:' || attachmentUrl.hostname !== 'firebasestorage.googleapis.com') {
+        if (attachmentUrl.protocol !== 'local-file:') {
             throw new Error(`Message ${documentSnapshot.id} has an invalid attachment URL.`);
         }
         if (message.attachment.contentType.startsWith('image/')) {
             const image = document.createElement('img');
             image.className = 'chat-message-attachment';
-            image.src = attachmentUrl.href;
+            if (attachmentUrl.protocol === 'local-file:') {
+                getObjectURLFromURL(message.attachment.downloadUrl).then(url => { image.src = url; }).catch(error => {
+                    console.error('Could not load a browser-local message image:', error);
+                });
+            }
             image.alt = message.attachment.name;
             image.loading = 'lazy';
             bubble.append(image);
         } else if (message.attachment.contentType.startsWith('video/')) {
             const video = document.createElement('video');
             video.className = 'chat-message-attachment';
-            video.src = attachmentUrl.href;
+            if (attachmentUrl.protocol === 'local-file:') {
+                getObjectURLFromURL(message.attachment.downloadUrl).then(url => { video.src = url; }).catch(error => {
+                    console.error('Could not load a browser-local message video:', error);
+                });
+            }
             video.controls = true;
             video.preload = 'metadata';
             video.playsInline = true;
@@ -346,11 +352,25 @@ function createChatMessage(documentSnapshot, currentUser, readMessageIds, markAs
         } else {
             const fileLink = document.createElement('a');
             fileLink.className = 'chat-message-file';
-            fileLink.href = attachmentUrl.href;
+            fileLink.href = '#';
             fileLink.target = '_blank';
             fileLink.rel = 'noopener noreferrer';
             fileLink.download = message.attachment.name;
             fileLink.textContent = `\u{1f4ce} ${message.attachment.name} (${formatFileSize(message.attachment.size)})`;
+            if (attachmentUrl.protocol === 'local-file:') {
+                fileLink.addEventListener('click', async event => {
+                    event.preventDefault();
+                    try {
+                        const url = await getObjectURLFromURL(message.attachment.downloadUrl);
+                        const download = document.createElement('a');
+                        download.href = url;
+                        download.download = message.attachment.name;
+                        download.click();
+                    } catch (error) {
+                        setStatus(status, `Could not open the attached file. ${getCommunityError(error)}`);
+                    }
+                });
+            }
             bubble.append(fileLink);
         }
     }
@@ -390,99 +410,15 @@ function updateChatMessageReadState(item, messageId, isRead, markAsRead) {
     }
 }
 
-function initializePresence(currentUser, messenger, realtimeDb, databaseSdk) {
-    if (!realtimeDb) {
-        const status = document.createElement('span');
-        status.className = 'messenger-presence-unavailable';
-        status.textContent = 'Online status unavailable';
-        messenger.onlineUsers.append(status);
-        return () => {};
-    }
-
-    const {
-        onDisconnect,
-        onValue,
-        remove,
-        ref: databaseRef,
-        serverTimestamp: databaseServerTimestamp,
-        set
-    } = databaseSdk;
-    const presenceRoot = databaseRef(realtimeDb, 'presence');
-    const presenceSessionId = crypto.randomUUID();
-    const ownPresence = databaseRef(realtimeDb, `presence/${currentUser.uid}/${presenceSessionId}`);
-    const connectedRef = databaseRef(realtimeDb, '.info/connected');
-    const displayName = (currentUser.displayName || currentUser.email || 'Church member').slice(0, 100);
-    const photoURL = isTrustedProfilePhoto(currentUser.photoURL) ? currentUser.photoURL : '';
-    const subscriptions = [];
-
-    subscriptions.push(onValue(presenceRoot, snapshot => {
-        const onlineMembers = [];
-        snapshot.forEach(member => {
-            const presence = member.val();
-            const sessions = presence && presence.state
-                ? [presence]
-                : Object.values(presence || {});
-            const onlineSession = sessions.find(session => session && session.state === 'online');
-            if (onlineSession) onlineMembers.push({ uid: member.key, ...onlineSession });
-        });
-        onlineMembers.sort((first, second) => first.displayName.localeCompare(second.displayName));
-        messenger.onlineUsers.replaceChildren();
-        const onlineLabel = document.createElement('span');
-        onlineLabel.className = 'messenger-online-count';
-        onlineLabel.textContent = `${onlineMembers.length} online`;
-        messenger.onlineUsers.append(onlineLabel);
-
-        onlineMembers.slice(0, 8).forEach(member => {
-            const avatarWrap = document.createElement('span');
-            avatarWrap.className = 'messenger-online-avatar';
-            avatarWrap.title = `${member.displayName} is online`;
-            avatarWrap.append(createAvatar(member.photoURL, member.displayName, 'online-member-photo'));
-            const indicator = document.createElement('span');
-            indicator.className = 'online-indicator';
-            indicator.setAttribute('aria-hidden', 'true');
-            avatarWrap.append(indicator);
-            messenger.onlineUsers.append(avatarWrap);
-        });
-        if (onlineMembers.length > 8) {
-            const more = document.createElement('span');
-            more.className = 'messenger-online-more';
-            more.textContent = `+${onlineMembers.length - 8}`;
-            messenger.onlineUsers.append(more);
-        }
-        messenger.onlineUsers.setAttribute('aria-label', `${onlineMembers.length} church members online`);
-    }, error => {
-        console.error('Could not load online church members:', error);
-        setStatus(messenger.status, 'Online member status is unavailable. Check your Firebase Realtime Database rules.');
-    }));
-
-    subscriptions.push(onValue(connectedRef, async snapshot => {
-        if (snapshot.val() !== true) return;
-        try {
-            await onDisconnect(ownPresence).remove();
-            await set(ownPresence, {
-                state: 'online',
-                displayName,
-                photoURL,
-                lastChanged: databaseServerTimestamp()
-            });
-        } catch (error) {
-            console.error('Could not publish online status:', error);
-            setStatus(messenger.status, 'Could not update your online status. Check Firebase Realtime Database rules.');
-        }
-    }, error => {
-        console.error('Could not connect to Firebase Realtime Database:', error);
-        setStatus(messenger.status, 'Online member status is unavailable. Configure Firebase Realtime Database.');
-    }));
-
-    return () => {
-        subscriptions.forEach(unsubscribe => unsubscribe());
-        remove(ownPresence).then(() => onDisconnect(ownPresence).cancel()).catch(error => {
-            console.error('Could not clear online status:', error);
-        });
-    };
+function initializePresence(messenger) {
+    const status = document.createElement('span');
+    status.className = 'messenger-presence-unavailable';
+    status.textContent = 'Online status is unavailable in browser-local mode.';
+    messenger.onlineUsers.append(status);
+    return () => {};
 }
 
-function initializeChat(currentUser, db, storage, realtimeDb, databaseSdk) {
+function initializeChat(currentUser, db, storage) {
     if (!db) return;
     const messenger = createMessengerWidget();
     const {
@@ -523,7 +459,14 @@ function initializeChat(currentUser, db, storage, realtimeDb, databaseSdk) {
             try {
                 let item = messageElements.get(documentSnapshot.id);
                 if (!item) {
-                    item = createChatMessage(documentSnapshot, currentUser, readMessageIds, markAsRead, deleteMessage);
+                    item = createChatMessage(
+                        documentSnapshot,
+                        currentUser,
+                        readMessageIds,
+                        markAsRead,
+                        deleteMessage,
+                        status
+                    );
                     messageElements.set(documentSnapshot.id, item);
                 } else {
                     updateChatMessageReadState(
@@ -558,7 +501,7 @@ function initializeChat(currentUser, db, storage, realtimeDb, databaseSdk) {
         let nextMessage = null;
         for (let index = documents.length - 1; index >= 0; index -= 1) {
             const item = messageElements.get(documents[index].id);
-            if (item && item.nextSibling !== nextMessage) {
+            if (item && (item.parentNode !== messageList || item.nextSibling !== nextMessage)) {
                 messageList.insertBefore(item, nextMessage);
             }
             if (item) nextMessage = item;
@@ -570,9 +513,11 @@ function initializeChat(currentUser, db, storage, realtimeDb, databaseSdk) {
     const subscribeToReadReceipts = snapshot => {
         const oldestMessage = snapshot.docs[0];
         const createdAt = oldestMessage && oldestMessage.data().createdAt;
-        const boundary = createdAt && typeof createdAt.toMillis === 'function'
-            ? createdAt.toMillis()
-            : null;
+        const boundary = createdAt instanceof Date
+            ? createdAt.getTime()
+            : createdAt && typeof createdAt.toMillis === 'function'
+                ? createdAt.toMillis()
+                : null;
         if (boundary === currentReadBoundary) return;
 
         if (unsubscribeReadReceipts) unsubscribeReadReceipts();
@@ -672,7 +617,7 @@ function initializeChat(currentUser, db, storage, realtimeDb, databaseSdk) {
             return;
         }
         if (file && !storage) {
-            setStatus(status, 'Attachments are unavailable because Firebase Storage is not configured.');
+            setStatus(status, 'File attachments are unavailable in this browser.');
             return;
         }
 
@@ -728,7 +673,7 @@ function initializeChat(currentUser, db, storage, realtimeDb, databaseSdk) {
         }
     });
 
-    const stopPresence = initializePresence(currentUser, messenger, realtimeDb, databaseSdk);
+    const stopPresence = initializePresence(messenger);
     let stopped = false;
     return () => {
         if (stopped) return;
@@ -747,12 +692,16 @@ function createActivityPost(documentSnapshot) {
     card.className = 'activity-post';
 
     const mediaUrl = new URL(post.downloadUrl);
-    if (mediaUrl.protocol !== 'https:' || mediaUrl.hostname !== 'firebasestorage.googleapis.com') {
+    if (mediaUrl.protocol !== 'local-file:') {
         throw new Error(`Post ${documentSnapshot.id} has an invalid media URL.`);
     }
 
     const media = document.createElement(post.contentType.startsWith('video/') ? 'video' : 'img');
-    media.src = mediaUrl.href;
+    if (mediaUrl.protocol === 'local-file:') {
+        getObjectURLFromURL(post.downloadUrl).then(url => { media.src = url; }).catch(error => {
+            console.error('Could not load a browser-local activity upload:', error);
+        });
+    }
     if (media instanceof HTMLVideoElement) {
         media.controls = true;
         media.preload = 'metadata';
@@ -916,21 +865,17 @@ function initializePostUpload(currentUser, db, storage) {
 }
 
 export async function initializeCommunity(currentUser) {
-    const [db, storage, realtimeDb] = await Promise.all([
-        getFirestoreDb(),
-        getFirebaseStorage(),
-        getRealtimeDatabase()
+    const [db, storage] = await Promise.all([
+        getLocalDatabase(),
+        getLocalFileStore()
     ]);
-    const databaseSdk = realtimeDb
-        ? await import('https://www.gstatic.com/firebasejs/11.10.0/firebase-database.js')
-        : null;
     const hasActivityFeed = Boolean(document.getElementById('activity-feed'));
     if (hasActivityFeed && (!db || !storage)) {
-        throw new Error('Firebase Firestore and Storage are not configured.');
+        throw new Error('Browser-local database and file storage are unavailable.');
     }
 
     const cleanups = [];
-    const chatCleanup = initializeChat(currentUser, db, storage, realtimeDb, databaseSdk);
+    const chatCleanup = initializeChat(currentUser, db, storage);
     if (chatCleanup) cleanups.push(chatCleanup);
     if (hasActivityFeed) {
         cleanups.push(initializeActivityFeed(db));

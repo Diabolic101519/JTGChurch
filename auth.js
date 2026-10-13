@@ -1,10 +1,15 @@
 import {
     createUserWithEmailAndPassword,
+    deleteObject,
+    getLocalFileStore,
+    getDownloadURL,
+    ref,
     signInWithEmailAndPassword,
     signOut,
+    auth,
+    uploadBytes,
     updateProfile
-} from 'https://www.gstatic.com/firebasejs/11.10.0/firebase-auth.js';
-import { auth, getFirebaseStorage } from './firebase.js';
+} from './local-db.js';
 
 const maximumProfilePhotoBytes = 5 * 1024 * 1024;
 
@@ -75,13 +80,13 @@ function getAuthErrorMessage(error, action) {
         case 'auth/weak-password':
             return 'Password must be at least 8 characters long.';
         case 'auth/operation-not-allowed':
-            return 'Email and password sign-in is not enabled for this Firebase project.';
+            return 'Email and password sign-in is unavailable in this browser.';
         case 'auth/too-many-requests':
             return 'Too many attempts. Please wait a while and try again.';
         case 'auth/network-request-failed':
             return 'Could not reach the sign-in service. Check your connection and try again.';
         default:
-            console.error(`Firebase ${action} failed:`, error);
+            console.error(`Local ${action} failed:`, error);
             return `Could not ${action}. Please try again.`;
     }
 }
@@ -104,7 +109,7 @@ export function initializeAuthForms() {
             event.preventDefault();
             if (!validateForm(signupForm)) return;
             if (!auth) {
-                showPopup('Firebase is not configured yet. Follow the Firebase setup steps in README.md.');
+                showPopup('Browser-local account storage is unavailable. Check that this site is open over HTTPS or localhost.');
                 return;
             }
 
@@ -137,12 +142,10 @@ export function initializeAuthForms() {
                 const credential = await createUserWithEmailAndPassword(auth, email, password);
                 let photoURL = '';
                 if (photo instanceof File && photo.size > 0) {
-                    const storage = await getFirebaseStorage();
+                    const storage = await getLocalFileStore();
                     if (!storage) {
                         photoWarning = ' Your account was created, but profile photo storage is not configured.';
                     } else {
-                        const { deleteObject, getDownloadURL, ref, uploadBytes } =
-                            await import('https://www.gstatic.com/firebasejs/11.10.0/firebase-storage.js');
                         profilePhotoReference = ref(storage, `profiles/${credential.user.uid}/avatar`);
                         try {
                             await uploadBytes(profilePhotoReference, photo, { contentType: photo.type });
@@ -190,7 +193,7 @@ export function initializeAuthForms() {
             event.preventDefault();
             if (!validateForm(loginForm)) return;
             if (!auth) {
-                showPopup('Firebase is not configured yet. Follow the Firebase setup steps in README.md.');
+                showPopup('Browser-local account storage is unavailable. Check that this site is open over HTTPS or localhost.');
                 return;
             }
 

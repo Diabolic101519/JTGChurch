@@ -7,59 +7,41 @@ Website for Jesus True Gospel Church.
 - Church information pages with shared navigation and responsive styling.
 - Login and sign-up forms embedded on the home page, beside the welcome message on desktop and stacked on smaller screens.
 - A standalone login and sign-up page at [`auth.html`](./auth.html).
-- Firebase Authentication with email/password sign-in and named member accounts.
-- Sign Up creates an account with a name, email, and password. Email addresses are normalized to lowercase; passwords must be at least eight characters. Invalid form entries, Firebase errors, and duplicate email attempts are reported in a centered, accessible dialog.
+- Browser-local email/password sign-in and named member accounts.
+- Sign Up creates an account with a name, email, and password. Email addresses are normalized to lowercase; passwords must be at least eight characters. Passwords are salted and hashed in the browser. Invalid form entries and duplicate email attempts are reported in a centered, accessible dialog.
 - A successful sign-up displays a confirmation dialog with a checkmark and switches to Login. Login errors, including missing accounts and incorrect passwords, are reported without revealing whether an email is registered; custom validation prevents browser-native validation popups.
 - Successful login redirects to the home page, hides the login card, and shows the member's name in the navigation.
-- The Activity navigation link is disabled while signed out and enabled for a valid Firebase session. Opening `activities.html` directly while signed out redirects to `auth.html`.
-- Signed-in members can open a floating Messenger from any page to send text, image, video, or file attachments and see online members with profile photos or a default avatar.
+- The Activity navigation link is disabled while signed out and enabled for a valid local session. Opening `activities.html` directly while signed out redirects to `auth.html`.
+- Signed-in members can open a floating Messenger from any page to send text, image, video, or file attachments and see profile photos or a default avatar.
 - Incoming messages remain unread until a member marks them read. Members can delete their own messages for everyone.
 - Messenger video attachments are limited to 50 MB; other Messenger attachments have no additional app-imposed size limit. Activity feed image/video uploads remain limited to 150 MB.
-- New members can optionally upload a profile photo (up to 5 MB), which is used in chat and presence.
-- Activity uploads have a 150 MB per-file limit, show upload progress, and are restricted to images and videos by Firebase Storage rules.
+- New members can optionally upload a profile photo (up to 5 MB), which is used in chat.
+- Activity uploads have a 150 MB per-file limit, show upload progress, and are restricted to images and videos.
 - Hover over or keyboard-focus the signed-in name to reveal Log Out; the account control works independently of the page navigation menu.
-- Logging out ends the Firebase session and returns to the home page, where login and sign-up are available and Activity is disabled again.
+- Logging out ends the local session and returns to the home page, where login and sign-up are available and Activity is disabled again.
 - The navigation also provides access to About Us, Church's, and Contact Us.
 - Pages apply a restrictive Content Security Policy and a strict cross-origin referrer policy.
 
-## Firebase setup
+## Browser-local data
 
-This website is hosted as a static site on GitHub Pages. GitHub Pages is free for public repositories on GitHub Free; Firebase is used only for the website's sign-in, database, chat, and file-storage backend. Firebase Hosting is not required.
+The site uses IndexedDB in the current browser to store accounts, chat messages, read receipts, profile photos, and Activity uploads. No Firebase account or project configuration is needed. The site remains hosted on GitHub Pages.
 
-1. In the [Firebase Console](https://console.firebase.google.com/), create or select the `web-app-f8475` Firebase project and register a **Web app** in it.
-2. In **Authentication → Sign-in method**, enable **Email/Password**.
-3. Create a Cloud Firestore database, a Cloud Storage bucket, and a Realtime Database for online-member presence.
-4. Copy the Web app configuration from **Project settings → Your apps** into `firebase-config.js`. The required values are `apiKey`, `authDomain`, `projectId`, `storageBucket`, `messagingSenderId`, and `appId`. Also copy `databaseURL` from the Realtime Database settings to enable online-member presence. These browser-facing Web app settings are not Admin credentials; never put a service-account key in this file.
-5. In **Authentication → Settings → Authorized domains**, add `diabolic101519.github.io` so sign-in can work on the published site.
-6. To deploy Firebase security rules from this computer, install the Firebase CLI if needed and authenticate:
+This is intentionally a browser-only version: accounts, messages, and uploads are not shared with other visitors, browsers, or devices. Clearing this site's browser data or using private browsing can remove the local database. This client-side sign-in is for convenience, not secure identity verification; anyone with access to the browser profile can inspect or change its local data.
 
-   ```sh
-   npm install -g firebase-tools
-   firebase login
-   ```
+Messages and uploaded files expire five calendar years after creation. The app purges expired records when it is opened and periodically while it remains open; a closed browser cannot run cleanup, so expired data is removed the next time the app opens. Account records are not automatically deleted.
 
-   This repository is associated with `web-app-f8475`. Deploy the included security rules:
+The local database uses the browser's available storage quota. Very large uploads may fail if the browser or device is low on space. Online presence across users is not available in browser-local mode.
 
-   ```sh
-   firebase deploy --only firestore:rules,database,storage:rules
-   ```
-
-7. In the GitHub repository, open **Settings → Pages** and select **GitHub Actions** as the build and deployment source. The included workflow deploys each push to `main` to [https://diabolic101519.github.io/JTGChurch/](https://diabolic101519.github.io/JTGChurch/). No Firebase Hosting service-account secret is needed.
-
-Until a valid Web app config is added to `firebase-config.js`, the UI disables sign-in, chat, and uploads. Firebase Hosting's automatic `/__/firebase/init.json` configuration is not available on GitHub Pages.
-
-The Firestore rules allow signed-in members to read shared messages and posts, restrict deletion to the message sender, and store each member's read receipts in their own private collection. Storage rules require the uploader's own account folder, restrict Activity posts to images/videos up to 150,000,000 bytes (150 MB), and enforce a 50,000,000-byte (50 MB) limit for Messenger videos; other Messenger file types have no app-imposed size cap. Profile pictures are limited to 5 MB. Client checks provide feedback, while Firebase rules enforce these limits and permissions if a client bypasses the page. Presence uses one connection entry per browser session so multiple open tabs do not incorrectly mark a member offline. It also needs the Realtime Database URL in `firebase-config.js`; if it is missing, chat remains available and shows that online status is unavailable.
-
-Existing accounts created by the earlier browser-local demo are not transferred to Firebase. Members need to create new accounts after Firebase is configured. Firebase Storage usage and uploads can incur charges; configure project budgets and monitor usage.
+To publish the site, open the GitHub repository's **Settings → Pages** and select **GitHub Actions** as the build and deployment source. The included workflow deploys each push to `main` to [https://diabolic101519.github.io/JTGChurch/](https://diabolic101519.github.io/JTGChurch/). GitHub Pages is free for public repositories on GitHub Free.
 
 ## Run locally
 
-Open the project with a local web server, such as VS Code Live Server, or deploy it to GitHub Pages. The Firebase JavaScript SDK is loaded from Google's CDN; no local package installation is required. Use HTTPS or localhost.
+Open the project with a local web server, such as VS Code Live Server, or deploy it to GitHub Pages. No package installation or external backend is required. Use HTTPS or localhost.
 
 ## Security and availability
 
-The Content Security Policy limits scripts, styles, forms, frames, and connections to this site and the Firebase services needed for sign-in, chat, and media. The church hero image is allowed from Unsplash. The referrer policy limits URL details shared with other origins. These page-level policies complement, but do not replace, HTTP response headers.
+The Content Security Policy limits scripts, styles, forms, frames, and connections to this site. The church hero image is allowed from Unsplash. The referrer policy limits URL details shared with other origins. These page-level policies complement, but do not replace, HTTP response headers.
 
 For production hosting, enforce HTTPS and configure response headers where the host supports them, including `Strict-Transport-Security`, `X-Content-Type-Options: nosniff`, a `frame-ancestors` Content Security Policy, and an appropriate `Permissions-Policy`. GitHub Pages does not read a repository `_headers` file, so those headers must be configured through a hosting provider or fronting CDN that supports them.
 
-DoS protection and chat moderation cannot be implemented in static page code. Use the hosting provider or a CDN with DDoS mitigation, traffic filtering, and rate limiting, and monitor Firebase quotas and billing.
+The browser-local database is not a shared service and does not provide server-side abuse prevention, moderation, or backups. Use a hosted backend if the site later needs shared accounts or data across visitors.

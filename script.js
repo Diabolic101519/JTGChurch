@@ -1,5 +1,10 @@
-import { onAuthStateChanged, signOut } from 'https://www.gstatic.com/firebasejs/11.10.0/firebase-auth.js';
-import { auth, firebaseConfigured, firebaseSetupMessage } from './firebase.js';
+import {
+    auth,
+    localDataMessage,
+    localDatabaseReady,
+    onAuthStateChanged,
+    signOut
+} from './local-db.js';
 import { initializeAuthForms } from './auth.js';
 
 const currentPage = window.location.pathname.split('/').pop() || 'index.html';
@@ -12,7 +17,7 @@ const logoutButton = document.getElementById('logout-button');
 const homeAuthCard = document.querySelector('.home-auth-card');
 const heroLayout = document.getElementById('hero-layout');
 const activityLinks = document.querySelectorAll('nav a[href="activities.html"]');
-const setupStatus = document.getElementById('firebase-setup-status');
+const setupStatus = document.getElementById('local-storage-status');
 let communityUid = null;
 let communityCleanup = null;
 let communityInitializationId = 0;
@@ -75,20 +80,19 @@ if (logoutButton && auth) {
             await signOut(auth);
             window.location.href = 'index.html';
         } catch (error) {
-            console.error('Firebase sign out failed:', error);
+            console.error('Browser-local sign out failed:', error);
             if (auth.currentUser) updateSignedInInterface(auth.currentUser);
             window.alert('Could not log out. Please try again.');
         }
     });
 }
 
-function showFirebaseSetupMessage() {
+function showLocalStorageMessage() {
     if (setupStatus) {
         setupStatus.hidden = false;
-        setupStatus.textContent = firebaseSetupMessage;
+        setupStatus.dataset.state = 'info';
+        setupStatus.textContent = localDataMessage;
     }
-    document.querySelectorAll('.community-form input, .community-form textarea, .community-form button')
-        .forEach(control => { control.disabled = true; });
 }
 
 function updateSignedInInterface(user) {
@@ -122,8 +126,6 @@ function updateSignedInInterface(user) {
         signedInNotice.hidden = !user;
     }
 
-    if (setupStatus && user) setupStatus.hidden = true;
-
     if (user && communityUid !== user.uid) {
         if (communityCleanup) communityCleanup();
         communityCleanup = null;
@@ -151,22 +153,18 @@ function updateSignedInInterface(user) {
 
     if (currentPage === 'activities.html') {
         if (!user) {
-            if (firebaseConfigured) window.location.replace('auth.html');
+            if (localDatabaseReady) window.location.replace('auth.html');
             return;
         }
     }
 }
 
-if (!firebaseConfigured || !auth) {
-    showFirebaseSetupMessage();
-    updateSignedInInterface(null);
-} else {
-    onAuthStateChanged(auth, updateSignedInInterface, error => {
-        console.error('Firebase authentication state could not be loaded:', error);
-        if (setupStatus) {
-            setupStatus.hidden = false;
-            setupStatus.textContent = 'Could not verify your sign-in. Check your connection and refresh the page.';
-        }
-        if (currentPage === 'activities.html') window.location.replace('auth.html');
-    });
-}
+showLocalStorageMessage();
+onAuthStateChanged(auth, updateSignedInInterface, error => {
+    console.error('Browser-local sign-in state could not be loaded:', error);
+    if (setupStatus) {
+        setupStatus.hidden = false;
+        setupStatus.textContent = 'Could not read this browser’s local account database. Check storage permissions and refresh the page.';
+    }
+    if (currentPage === 'activities.html') window.location.replace('auth.html');
+});

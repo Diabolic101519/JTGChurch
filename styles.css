@@ -376,6 +376,11 @@ section {
     color: #1b4d6b;
 }
 
+.setup-status[data-state="info"] {
+    background: #e6f1f8;
+    color: #1b4d6b;
+}
+
 .setup-status[hidden],
 .community-status[hidden] {
     display: none;
