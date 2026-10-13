@@ -377,8 +377,7 @@ section {
 }
 
 .setup-status[data-state="info"] {
-    background: #e6f1f8;
-    color: #1b4d6b;
+    display: none;
 }
 
 .setup-status[hidden],
