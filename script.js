@@ -1,6 +1,5 @@
 import {
     auth,
-    localDataMessage,
     localDatabaseReady,
     onAuthStateChanged,
     signOut
@@ -87,14 +86,6 @@ if (logoutButton && auth) {
     });
 }
 
-function showLocalStorageMessage() {
-    if (setupStatus) {
-        setupStatus.hidden = false;
-        setupStatus.dataset.state = 'info';
-        setupStatus.textContent = localDataMessage;
-    }
-}
-
 function updateSignedInInterface(user) {
     if (!user) {
         communityInitializationId += 1;
@@ -159,7 +150,6 @@ function updateSignedInInterface(user) {
     }
 }
 
-showLocalStorageMessage();
 onAuthStateChanged(auth, updateSignedInInterface, error => {
     console.error('Browser-local sign-in state could not be loaded:', error);
     if (setupStatus) {

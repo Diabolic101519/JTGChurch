@@ -238,7 +238,6 @@ function dateFiveYearsAfter(date) {
 }
 
 export const localDatabaseReady = true;
-export const localDataMessage = 'Browser-local mode: accounts, chat, and files are stored only in this browser and are not shared with other visitors or devices.';
 
 export const auth = {
     currentUser: null,
